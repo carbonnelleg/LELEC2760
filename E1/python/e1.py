@@ -17,10 +17,8 @@ def encrypt(pt, k, nrounds):
     ----------
     pt : np.ndarray[np.uint8]
         plaintext
-
     k : np.ndarray[np.uint8]
         key
-
     nrounds : int
         number of rounds
 
@@ -33,15 +31,17 @@ def encrypt(pt, k, nrounds):
     ---------------
     This function does not support multiple axes object.
 
-    >>> # Don't use this
-    >>> pts = np.random.randint(0, 16, (n, 8), dtype=np.uint8)
-    >>> cts = encrypt(pts, k, nrounds, axis=0)
+    .. code-block::
 
-    >>> # Instead use this
-    >>> pts = np.random.randint(0, 16, (n, 8), dtype=np.uint8)
-    >>> cts = np.zeros((n, 8), dtype=np.uint8)
-    >>> for i, ct in enumerate(cts):
-    ...     cts[i] = encrypt(pts[i], k, nrounds)
+        # Don't use this
+        pts = np.random.randint(0, 16, (n, 8), dtype=np.uint8)
+        cts = encrypt(pts, k, nrounds, axis=0)
+
+        # Instead use this
+        pts = np.random.randint(0, 16, (n, 8), dtype=np.uint8)
+        cts = np.zeros((n, 8), dtype=np.uint8)
+        for i, ct in enumerate(cts):
+            cts[i] = encrypt(pts[i], k, nrounds)
     """
 
     new_input: np.ndarray[np.uint8] = pt
@@ -64,10 +64,8 @@ def decrypt(ct, k, nrounds):
     ----------
     ct : np.ndarray[np.uint8]
         ciphertext
-
     k : np.ndarray[np.uint8]
         key
-
     nrounds : int
         number of rounds
 

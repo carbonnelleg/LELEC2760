@@ -22,12 +22,12 @@ def experimental_bias(pts, pts_msk, cts, cts_msk):
     Parameters
     ----------
     pts : np.ndarray[np.uint8]
-        plaintexts, decimal form, shape = (n * 8)
+        plaintexts, decimal form, shape = (n, 8)
     pts_msk : np.ndarray[np.uint8]
         input mask, decimal form, shape = (8,)
     cts : np.ndarray[np.uint8]
-        ciphertext, decimal form, shape = (n * 8)
-    cts_msk : np.ndarray[uint]
+        ciphertext, decimal form, shape = (n, 8)
+    cts_msk : np.ndarray[np.uint8]
         output mask, decimal form, shape = (8,)
 
     Returns

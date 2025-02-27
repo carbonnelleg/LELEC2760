@@ -14,7 +14,6 @@ def compute_bias_table(sbox, l):
     ----------
     sbox : np.ndarray[np.uint8]
         substitution table
-
     l : int
         input/output mask length ( = 2**n where S-box has n inputs and outputs)
 
