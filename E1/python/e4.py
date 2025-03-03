@@ -249,6 +249,7 @@ def main_attack():
     all_pts = np.load(import_path+"/pts_cts_pairs.npz")["pts"]
     all_cts = np.load(import_path+"/pts_cts_pairs.npz")["cts"]
     for att in range(partial_attacks):
+        print(f"attack {att}/{partial_attacks}")
         key_bits_target = dec2bits(key_targets[att])
         key_bits_locs = np.where(key_bits_target == 1)[0]
         guess_size = int(np.sum(key_bits_target))
