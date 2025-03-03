@@ -56,11 +56,14 @@ def attack(
 
     for subkey_guess in tqdm(range(2**guess_size)):
         tested_key[key_bits_locs] = dec2bits([subkey_guess], size=guess_size)
-        for i, ct in enumerate(cts):
+        # Backtrack the last round of the encryption scheme for every ciphertext
+        for i, ct in enumerate(cts): 
             xored_out = ct ^ bits2dec(tested_key)
             permu_out = bits2dec(dec2bits(xored_out)[playerinv])
             subst_outs[i] = sboxinv[permu_out]
 
+        # Compute the experimental bias for the tested_key (the subkey_guess), using the
+        # last round of the encryption scheme
         bias[subkey_guess] = experimental_bias(
             pts, pts_msk, subst_outs, cts_msk)
 
@@ -100,6 +103,7 @@ def exhaustive_search(pt, ct, nrounds, final_key_target, init_key_guess):
     for key_guess in tqdm(range(2**guess_size)):
         k[key_bits_locs] = dec2bits([key_guess], size=guess_size)
         final_key_guess = bits2dec(k)
+        # Check if the key encrypts pt into ct
         if (encrypt(pt, final_key_guess, nrounds) == ct).all():
             return final_key_guess
         else:
@@ -154,8 +158,11 @@ def calc_n(eps, M, alpha_M=0.05):
 
         n &= \frac{4\textrm{erf}^{-2}(2\alpha-1)}{\varepsilon^2}
     """
+    # Calculate the error probability for 1 try
     alpha = 1 - (1-alpha_M)**(2**(-M))
+    # Calculate the distance between the 2 distributions
     d = 8*erfinv(2*alpha-1)**2
+    # Calculate the number of samples required
     n = round(d/(2*eps**2))
     return n
 
@@ -248,28 +255,35 @@ def main_attack():
     init_key_guess = np.zeros(8, dtype=np.uint8)
     all_pts = np.load(import_path+"/pts_cts_pairs.npz")["pts"]
     all_cts = np.load(import_path+"/pts_cts_pairs.npz")["cts"]
+    # Try multiple different linear approximations to recover the key
     for att in range(partial_attacks):
-        print(f"attack {att}/{partial_attacks}")
+        print(f"attack {att+1}/{partial_attacks}")
+
+        # Calculate the guess size and the number of plaintext/ciphertext pairs
         key_bits_target = dec2bits(key_targets[att])
         key_bits_locs = np.where(key_bits_target == 1)[0]
         guess_size = int(np.sum(key_bits_target))
         n = calc_n(eps[att], guess_size, alpha_M=.05)
 
+        # Randomly select n plaintext/ciphertext pairs
         rand_ind = np.random.choice(range(len(all_pts)), n, replace=False)
         rand_pairs = np.array(list(map(list, zip(all_pts, all_cts))))[rand_ind]
         pts = rand_pairs[:, 0]
         cts = rand_pairs[:, 1]
 
+        # Perform the attack and store the expermiental bias, and the initial key guess
         global biases
         biases.append(attack(pts, pts_msks[att], cts, cts_msks[att], key_targets[att],
                       init_key_guess=init_key_guess))
         key_guess = np.argmax(np.abs(biases[att]))
 
+        # Update the key guess (the key bits that are already found)
         k = dec2bits(init_key_guess)
         k[key_bits_locs] = dec2bits([key_guess], size=guess_size)
         init_key_guess = bits2dec(k)
         print(f"provisional key guess: {init_key_guess}")
 
+    # Perform the final exhaustive search to recover the remaining key bits 
     global final_key_guess
     final_key_target = 0xF - \
         np.bitwise_or.reduce(key_targets[:partial_attacks])
