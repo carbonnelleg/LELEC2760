@@ -5,8 +5,11 @@ from e3 import gen_data, experimental_bias
 from tqdm import tqdm
 from scipy.special import erfinv
 
-sboxinv: np.ndarray[np.uint8] = np.load("sbox.npz")["sboxinv"]
-playerinv: np.ndarray[np.uint8] = np.load("player.npz")["playerinv"]
+import os
+import_path: str = os.path.dirname(os.path.realpath(__file__)) 
+
+sboxinv: np.ndarray[np.uint8] = np.load(import_path+"/sbox.npz")["sboxinv"]
+playerinv: np.ndarray[np.uint8] = np.load(import_path+"/player.npz")["playerinv"]
 
 
 def attack(
@@ -243,8 +246,8 @@ def main_eval(att, alpha_M=.05):
 def main_attack():
     partial_attacks = 5
     init_key_guess = np.zeros(8, dtype=np.uint8)
-    all_pts = np.load("pts_cts_pairs.npz")["pts"]
-    all_cts = np.load("pts_cts_pairs.npz")["cts"]
+    all_pts = np.load(import_path+"/pts_cts_pairs.npz")["pts"]
+    all_cts = np.load(import_path+"/pts_cts_pairs.npz")["cts"]
     for att in range(partial_attacks):
         key_bits_target = dec2bits(key_targets[att])
         key_bits_locs = np.where(key_bits_target == 1)[0]

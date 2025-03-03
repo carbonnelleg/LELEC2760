@@ -1,11 +1,14 @@
 import numpy as np
 from utils import dec2bits, bits2dec
 
-sbox: np.ndarray[np.uint8] = np.load("sbox.npz")["sbox"]
-sboxinv: np.ndarray[np.uint8] = np.load("sbox.npz")["sboxinv"]
+import os
+import_path: str = os.path.dirname(os.path.realpath(__file__))
 
-player: np.ndarray[np.uint8] = np.load("player.npz")["player"]
-playerinv: np.ndarray[np.uint8] = np.load("player.npz")["playerinv"]
+sbox: np.ndarray[np.uint8] = np.load(import_path+"/sbox.npz")["sbox"]
+sboxinv: np.ndarray[np.uint8] = np.load(import_path+"/sbox.npz")["sboxinv"]
+
+player: np.ndarray[np.uint8] = np.load(import_path+"/player.npz")["player"]
+playerinv: np.ndarray[np.uint8] = np.load(import_path+"/player.npz")["playerinv"]
 
 
 def encrypt(pt, k, nrounds):

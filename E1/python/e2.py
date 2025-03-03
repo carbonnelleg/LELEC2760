@@ -1,6 +1,8 @@
 import numpy as np
 from utils import dec2bits, bits2dec
 
+import os
+import_path: str = os.path.dirname(os.path.realpath(__file__))
 
 def compute_bias_table(sbox, l):
     """
@@ -46,9 +48,9 @@ def print_bias_table(table):
 
 if __name__ == "__main__":
 
-    sbox = np.load("sbox.npz")["sbox"]
+    sbox = np.load(import_path+"/sbox.npz")["sbox"]
     bias_table = compute_bias_table(sbox, 16)
 
     print_bias_table(bias_table)
 
-    np.save("my_bias_table.npy", bias_table)
+    np.save(import_path+"/my_bias_table.npy", bias_table)
