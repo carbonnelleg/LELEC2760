@@ -4,6 +4,8 @@ from utils import dec2bits, bits2dec
 from e3 import gen_data, experimental_bias
 from tqdm import tqdm
 from scipy.special import erfinv
+from concurrent.futures import ProcessPoolExecutor
+import timeit
 
 import os
 import_path: str = os.path.dirname(os.path.realpath(__file__)) 
@@ -56,7 +58,7 @@ def attack(
 
     for subkey_guess in tqdm(range(2**guess_size)):
         tested_key[key_bits_locs] = dec2bits([subkey_guess], size=guess_size)
-        # Backtrack the last round of the encryption scheme for every ciphertext
+        # Backtrack the last round of the encryption scheme for every ciphertext (decryption with single round)
         for i, ct in enumerate(cts): 
             xored_out = ct ^ bits2dec(tested_key)
             permu_out = bits2dec(dec2bits(xored_out)[playerinv])
@@ -69,6 +71,83 @@ def attack(
 
     return bias
 
+def compute_subkey_bias(args):
+    """
+    Computes the experimental bias for one particular subkey guess.
+    This function is meant to be run inside a separate process.
+    """
+    (subkey_guess, pts, pts_msk, cts, cts_msk,
+     init_key_guess, key_bits_locs, guess_size) = args
+
+    # Create a copy of the initial tested key bits (as numpy array) then
+    # update the bits in the targeted positions according to subkey_guess.
+    tested_key = dec2bits(init_key_guess).copy()
+    tested_key[key_bits_locs] = dec2bits([subkey_guess], size=guess_size)
+
+    round_key = bits2dec(tested_key)
+    
+    # Process every ciphertext: backtrack one round.
+    subst_outs = np.empty_like(cts, dtype=np.uint8)
+    # For each ciphertext, perform the operations vectorized if possible.
+    # (Given the operations, we loop over ciphertexts.)
+    for i, ct in enumerate(cts):
+        xored_out = ct ^ round_key
+        # The following conversion (ct -> bits -> permute -> reconstruct)
+        permu_out = bits2dec(dec2bits(xored_out)[playerinv])
+        subst_outs[i] = sboxinv[permu_out]
+
+    bias = experimental_bias(pts, pts_msk, subst_outs, cts_msk)
+    return subkey_guess, bias
+
+def multithreaded_attack(
+    pts, pts_msk, cts, cts_msk, key_target,
+    init_key_guess=np.zeros(8, dtype=np.uint8)
+) -> np.ndarray[float]:
+    """
+    Performs an attack on the encryption scheme by computing the experimental bias
+    of the linear approximation for all possible subkeys.
+
+    Parameters
+    ----------
+    pts : np.ndarray[np.uint8]
+        plaintexts, decimal form, shape = (n, 8)
+    pts_msk : np.ndarray[np.uint8]
+        input mask, decimal form, shape = (8,)
+    cts : np.ndarray[np.uint8]
+        ciphertext, decimal form, shape = (n, 8)
+    cts_msk : np.ndarray[np.uint8]
+        output mask, decimal form, shape = (8,)
+    key_target : np.ndarray[np.uint8]
+        targeted key bits mask, decimal form, shape = (8,)
+
+        in binary format, M bits are 1 and 32 - M bits are 0
+    init_key_guess : np.ndarray[np.uint8], optional
+        initial (total) key guess. The default is np.zeros(8, dtype=np.uint8).
+
+    Returns
+    -------
+    bias : np.ndarray[float]
+        array of experimental bias with index corresponding to subkey, shape = (2**M,)
+    """
+    # key_target is converted in binary format and guess_size ( = M) is calculated
+    key_bits_target = dec2bits(key_target)
+    guess_size = int(np.sum(key_bits_target))
+    key_bits_locs = np.where(key_bits_target == 1)[0]
+
+    # Build arguments for every subkey guess.
+    tasks = []
+    for subkey_guess in range(2**guess_size):
+        tasks.append((subkey_guess, pts, pts_msk, cts, cts_msk,
+                      init_key_guess, key_bits_locs, guess_size))
+    
+    # Use a ProcessPoolExecutor for parallelism.
+    with ProcessPoolExecutor() as executor:
+        results = list(tqdm(executor.map(compute_subkey_bias, tasks), total=len(tasks)))
+    
+    bias = np.zeros(2**guess_size)
+    for subkey, subkey_bias in results:
+        bias[subkey] = subkey_bias
+    return bias
 
 def exhaustive_search(pt, ct, nrounds, final_key_target, init_key_guess):
     """
@@ -252,6 +331,7 @@ def main_eval(att, alpha_M=.05):
 
 def main_attack():
     partial_attacks = 5
+    threaded = True
     init_key_guess = np.zeros(8, dtype=np.uint8)
     all_pts = np.load(import_path+"/pts_cts_pairs.npz")["pts"]
     all_cts = np.load(import_path+"/pts_cts_pairs.npz")["cts"]
@@ -273,8 +353,12 @@ def main_attack():
 
         # Perform the attack and store the expermiental bias, and the initial key guess
         global biases
-        biases.append(attack(pts, pts_msks[att], cts, cts_msks[att], key_targets[att],
-                      init_key_guess=init_key_guess))
+        if threaded:
+            biases.append(multithreaded_attack(pts, pts_msks[att], cts, cts_msks[att], key_targets[att],
+                    init_key_guess=init_key_guess))
+        else:
+            biases.append(attack(pts, pts_msks[att], cts, cts_msks[att], key_targets[att],
+                    init_key_guess=init_key_guess))
         key_guess = np.argmax(np.abs(biases[att]))
 
         # Update the key guess (the key bits that are already found)
