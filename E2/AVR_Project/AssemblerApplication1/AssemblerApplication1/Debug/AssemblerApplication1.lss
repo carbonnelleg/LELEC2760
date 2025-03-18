@@ -1,9 +1,12 @@
 
-AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 18 13:47:01 2025
+AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 18 15:19:10 2025
 
 [builtin](2): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.3.300\avrasm\inc\m644pdef.inc'
+C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm(111): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.3.300\avrasm\inc\m644Pdef.inc'
+[builtin](2): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.3.300\avrasm\inc\m644pdef.inc'
+C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm(111): Including file 'C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.3.300\avrasm\inc\m644Pdef.inc'
                                  
-                                 ;
+                                 ; Copyright (C) 2003,2006 B. Poettering
                                  
                                  ;***** Created: 2011-02-09 12:03 ******* Source: ATmega644P.xml **********
                                  ;*************************************************************************
@@ -1150,17 +1153,1135 @@ AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\Ass
                                  
                                  ; ***** END OF FILE ******************************************************
                                  
-                                 ; AssemblerApplication1.asm
+                                 ; 
+                                 ; This program is free software; you can redistribute and/or modify
+                                 ; it under the terms of the GNU General Public License as published by
+                                 ; the Free Software Foundation; either version 2 of the License, or
+                                 ; (at your option) any later version. Whenever you redistribute a copy
+                                 ; of this document, make sure to include the copyright and license
+                                 ; agreement without modification.
                                  ;
-                                 ; Created: 04/03/2025 15:28:48
-                                 ; Author : biko-
+                                 ; This program is distributed in the hope that it will be useful,
+                                 ; but WITHOUT ANY WARRANTY; without even the implied warranty of
+                                 ; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+                                 ; GNU General Public License for more details.
                                  ;
+                                 ; You should have received a copy of the GNU General Public License
+                                 ; along with this program; if not, write to the Free Software
+                                 ; Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+                                 ; The license text can be found here: http://www.gnu.org/licenses/gpl.txt
+                                 
+                                 ;                http://point-at-infinity.org/avraes/
+                                 ;
+                                 ; This AES implementation was written in May 2003 by B. Poettering. It is 
+                                 ; published under the terms of the GNU General Public License. If you need 
+                                 ; AES code, but this license is unsuitable for your project, feel free to 
+                                 ; contact me: avraes AT point-at-infinity.org
                                  
                                  
-                                 ; Replace with your application code
-                                 start:
-000000 9503                          inc r16
-000001 cffe                          rjmp start
+                                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                                 ;
+                                 ;                            RijndaelFurious
+                                 ;
+                                 ; This is a microcontroller implementation of the Rijndael block cipher, better
+                                 ; known as AES. The target device class is Atmel's AVR, a family of very fast 
+                                 ; and very powerful flash MCUs, operating at clock rates up to 16 MHz,  
+                                 ; executing one instruction per clock cycle (16 MIPS). The implementation 
+                                 ; given here achieves an encryption rate of about 93 kByte per second (on a 
+                                 ; 16MHz MCU). The decryption performs about 30% slower than encryption (typical 
+                                 ; for Rijndael).
+                                 ; 
+                                 ; The implemented algorithm is restricted to block and key sizes of 128 bit. 
+                                 ; Larger key sizes can be obtained by altering the key scheduling code, which
+                                 ; should be easy. As the cipher's state is completely kept in registers
+                                 ; (which are limited in number), the block size is not that easy to enlarge.
+                                 ; 
+                                 ; This implementation makes extensive use of the AVR's "lpm" instruction,
+                                 ; which loads data bytes from program memory at given addresses (the s-boxes 
+                                 ; are realized that way). Some members of the AVR family don't offer that 
+                                 ; instruction at all (e.g. AT90S1200), others only in a restricted way 
+                                 ; (forcing the target register to be r0). The code below requires the least 
+                                 ; restricted lpm instruction (with free choice of the target register).
+                                 ; The ATmega161 devices meet the above mentioned requirements.
+                                 ; 
+                                 ; Statistics:
+                                 ; 
+                                 ; 16 MHz MCU | clock cycles | blocks per second | bytes per second
+                                 ; -----------+--------------+-------------------+------------------
+                                 ; encryption |    2739      |       5842        |       93465
+                                 ; decryption |    3579      |       4471        |       71528
+                                 ; 
+                                 ; KEY SETUP TIME: 756 clock cycles
+                                 ; 
+                                 ; CODE SIZE
+                                 ; instructions:  802 byte ( 401 words)
+                                 ; sboxes:        768 byte ( 384 words) = 3 * 256 byte
+                                 ; total:        1570 byte ( 785 words)
+                                 ;
+                                 ; RAM REQUIREMENTS
+                                 ; 16 * 11 = 176 byte for each expanded key
+                                 ;
+                                 ;
+                                 ; This source code consists of some routines and an example application, 
+                                 ; which encrypts a certain plaintext and decrypts it afterwards with the
+                                 ; same key. Comments in the code clarify the interaction between the key 
+                                 ; expansion and the encryption/decryption routines.
+                                 ;
+                                 ; I encourage to read the following Rijndael-related papers/books/sites:
+                                 ; [1] "The Design of Rijndael", Daemen & Rijmen, Springer, ISBN 3-540-42580-2
+                                 ; [2] http://www.esat.kuleuven.ac.be/~rijmen/rijndael/
+                                 ; [3] http://www.esat.kuleuven.ac.be/~rijmen/rijndael/rijndaeldocV2.zip
+                                 ; [4] http://www.esat.kuleuven.ac.be/~rijmen/rijndael/atmal.zip
+                                 ; [5] http://csrc.nist.gov/CryptoToolkit/aes/rijndael/
+                                 ;
+                                 ; [1] is *the* book about Rijndael, [2] is the official Rijndael homepage,
+                                 ; [3] contains the complete Rijndael AES specification, [4] is another
+                                 ; Rijndael-implementation for AVR MCUs (but much slower than this one, 
+                                 ; taking 3815 clock cycles per encryption), [5] is the official NIST AES 
+                                 ; site with further links.
+                                 ;
+                                 ; AVR and ATmega are registered trademarks by the ATMEL corporation.
+                                 ; See http://www.atmel.com and http://www.atmel.com/products/avr/ for
+                                 ; further details.
+                                 
+                                 	
+                                 	
+                                 ;;; ***************************************************************************
+                                 ;;; The Rijndael cipher acts on a so-called (128 bit) "state matrix", 
+                                 ;;; represented here by the 4x4 state bytes ST11-ST44. To guarantee maximum
+                                 ;;; performance on AVR MCUs, these bytes are kept in registers (defaulted to
+                                 ;;; the 16 low order registers r0-r15, but this may be changed if required).
+                                 ;;; 
+                                 ;;; The implementation makes use of four auxiliary registers (H1-H3 and I),
+                                 ;;; some of which must reside in the upper registers (r16-r31). In addition
+                                 ;;; ramp-registers YH:YL and ZH:ZL are used.
+                                 ;;;
+                                 ;;; If the context *really* requires more registers than the remaining ones, 
+                                 ;;; it seems promising to move the I-register to a (fixed) ram location. 
+                                 ;;; In the time crititcal routines the I-value is rarely used, thus the 
+                                 ;;; speed loss obtained by dropping it from the register file is acceptible. 
+                                 
+                                 ;.include "m161def.inc"
+                                 .include "m644Pdef.inc"
+                                 
+                                 ;***** Created: 2011-02-09 12:03 ******* Source: ATmega644P.xml **********
+                                 ;*************************************************************************
+                                 ;* A P P L I C A T I O N   N O T E   F O R   T H E   A V R   F A M I L Y
+                                 ;* 
+                                 ;* Number            : AVR000
+                                 ;* File Name         : "m644Pdef.inc"
+                                 ;* Title             : Register/Bit Definitions for the ATmega644P
+                                 ;* Date              : 2011-02-09
+                                 ;* Version           : 2.35
+                                 ;* Support E-mail    : avr@atmel.com
+                                 ;* Target MCU        : ATmega644P
+                                 ;* 
+                                 ;* DESCRIPTION
+                                 ;* When including this file in the assembly program file, all I/O register 
+                                 ;* names and I/O register bit names appearing in the data book can be used.
+                                 ;* In addition, the six registers forming the three data pointers X, Y and 
+                                 ;* Z have been assigned names XL - ZH. Highest RAM address for Internal 
+                                 ;* SRAM is also defined 
+                                 ;* 
+                                 ;* The Register names are represented by their hexadecimal address.
+                                 ;* 
+                                 ;* The Register Bit names are represented by their bit number (0-7).
+                                 ;* 
+                                 ;* Please observe the difference in using the bit names with instructions
+                                 ;* such as "sbr"/"cbr" (set/clear bit in register) and "sbrs"/"sbrc"
+                                 ;* (skip if bit in register set/cleared). The following example illustrates
+                                 ;* this:
+                                 ;* 
+                                 ;* in    r16,PORTB             ;read PORTB latch
+                                 ;* sbr   r16,(1<<PB6)+(1<<PB5) ;set PB6 and PB5 (use masks, not bit#)
+                                 ;* out   PORTB,r16             ;output to PORTB
+                                 ;* 
+                                 ;* in    r16,TIFR              ;read the Timer Interrupt Flag Register
+                                 ;* sbrc  r16,TOV0              ;test the overflow flag (use bit#)
+                                 ;* rjmp  TOV0_is_set           ;jump if set
+                                 ;* ...                         ;otherwise do something else
+                                 ;*************************************************************************
+                                 
+                                 #ifndef _M644PDEF_INC_
+                                 #endif  /* _M644PDEF_INC_ */
+                                 
+                                 ; ***** END OF FILE ******************************************************
+                                 
+                                 .def ST11=r0
+                                 .def ST21=r1
+                                 .def ST31=r2
+                                 .def ST41=r3
+                                 .def ST12=r4
+                                 .def ST22=r5
+                                 .def ST32=r6
+                                 .def ST42=r7
+                                 .def ST13=r8
+                                 .def ST23=r9
+                                 .def ST33=r10
+                                 .def ST43=r11
+                                 .def ST14=r12
+                                 .def ST24=r13
+                                 .def ST34=r14
+                                 .def ST44=r15
+                                 .def H1=r16
+                                 .def H2=r17
+                                 .def H3=r18
+                                 .def I=r21
+                                 .def temp=r22
+                                 
+000000 94f8                      main:	cli			; initialize stack
+000001 e1f0                      	ldi r31,HIGH(RAMEND)
+000002 bffe                      	out SPH,r31
+000003 efff                      	ldi r31,LOW(RAMEND)
+000004 bffd                      	out SPL,r31
+                                 
+000005 e0f0                      	ldi ZH, high(key<<1)	; load key into ST11-ST44
+000006 e7e6                      	ldi ZL, low(key<<1)
+000007 9005                      	lpm ST11, Z+
+000008 9015                      	lpm ST21, Z+
+000009 9025                      	lpm ST31, Z+
+00000a 9035                      	lpm ST41, Z+
+00000b 9045                      	lpm ST12, Z+
+00000c 9055                      	lpm ST22, Z+
+00000d 9065                      	lpm ST32, Z+
+00000e 9075                      	lpm ST42, Z+
+00000f 9085                      	lpm ST13, Z+
+000010 9095                      	lpm ST23, Z+
+000011 90a5                      	lpm ST33, Z+
+000012 90b5                      	lpm ST43, Z+
+000013 90c5                      	lpm ST14, Z+
+000014 90d5                      	lpm ST24, Z+
+000015 90e5                      	lpm ST34, Z+
+000016 90f5                      	lpm ST44, Z+
+                                 	
+000017 e0d1                      	ldi YH, $01		; expand key to the memory
+000018 e0c0                      	ldi YL, $00		; locations $100..$100+(16*11-1)
+000019 d029                      	rcall key_expand
+                                 
+00001a e0f0                      	ldi ZH, high(text<<1)	; load plaintext into ST11-ST44
+00001b e6e6                      	ldi ZL, low(text<<1)
+00001c 9005                      	lpm ST11, Z+
+00001d 9015                      	lpm ST21, Z+
+00001e 9025                      	lpm ST31, Z+
+00001f 9035                      	lpm ST41, Z+
+000020 9045                      	lpm ST12, Z+
+000021 9055                      	lpm ST22, Z+
+000022 9065                      	lpm ST32, Z+
+000023 9075                      	lpm ST42, Z+
+000024 9085                      	lpm ST13, Z+
+000025 9095                      	lpm ST23, Z+
+000026 90a5                      	lpm ST33, Z+
+000027 90b5                      	lpm ST43, Z+
+000028 90c5                      	lpm ST14, Z+
+000029 90d5                      	lpm ST24, Z+
+00002a 90e5                      	lpm ST34, Z+
+00002b 90f5                      	lpm ST44, Z+
+                                 
+                                 	; now the registers ST11-ST44 contain the plaintext given below
+                                 	
+00002c e0d1                      	ldi YH, 0x01		; initialize YH:YL to
+00002d e0c0                      	ldi YL, 0x00		; expanded key and call
+00002e d047                      	rcall encrypt		; encryption routine
+                                 
+                                 	; now the registers ST11-ST44 contain the enciphered text
+                                 
+00002f e0d1                      	ldi YH, high($100+16*11) ; initialize YH:YL to point BEHIND 
+000030 ebc0                      	ldi YL, low($100+16*11)	; decryption key material and
+000031 d106                      	rcall decrypt		; call decryption routine
+                                 
+                                 	; now the registers ST11-ST44 contain the plaintext again
+                                 
+000032 cfff                      main0:	rjmp main0		; stop
+                                 	
+                                 
+                                 ;;;text:
+                                 ;;;.db $32,$43,$f6,$a8,$88,$5a,$30,$8d,$31,$31,$98,$a2,$e0,$37,$07,$34
+                                 ;;;key:
+                                 ;;;.db $2b,$7e,$15,$16,$28,$ae,$d2,$a6,$ab,$f7,$15,$88,$09,$cf,$4f,$3c
+                                 
+                                 text:
+000033 0000
+000034 0000
+000035 0000
+000036 0000
+000037 0000
+000038 0000
+000039 0000
+00003a 0000                      .db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+                                 key:
+00003b 0000
+00003c 0000
+00003d 0000
+00003e 0000
+00003f 0000
+000040 0000
+000041 0000
+000042 0000                      .db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+                                 
+                                 ;;; ***************************************************************************
+                                 ;;; 
+                                 ;;; KEY_EXPAND
+                                 ;;; The following routine implements the Rijndael key expansion algorithm. The 
+                                 ;;; caller supplies the 128 bit key in the registers ST11-ST44 and a pointer 
+                                 ;;; in the YH:YL register pair. The key is expanded to the memory 
+                                 ;;; positions [Y : Y+16*11-1]. Note: the key expansion is necessary for both
+                                 ;;; encryption and decryption.
+                                 ;;; 
+                                 ;;; Parameters:
+                                 ;;;     ST11-ST44:	the 128 bit key
+                                 ;;;         YH:YL:	pointer to ram location
+                                 ;;; Touched registers:
+                                 ;;;     ST11-ST44,H1-H3,ZH,ZL,YH,YL
+                                 ;;; Clock cycles:	756
+                                 
+                                 key_expand:
+000043 e001                      	ldi H1, 1
+000044 e11b                      	ldi H2, $1b
+000045 e1f0                      	ldi ZH, high(sbox<<1)
+000046 c01c                      	rjmp keyexp1
+000047 2ded                      keyexp0:mov ZL, ST24
+000048 9124                      	lpm H3, Z
+000049 2602                      	eor ST11, H3
+00004a 2600                      	eor ST11, H1
+00004b 2dee                      	mov ZL, ST34
+00004c 9124                      	lpm H3, Z
+00004d 2612                      	eor ST21, H3
+00004e 2def                      	mov ZL, ST44
+00004f 9124                      	lpm H3, Z
+000050 2622                      	eor ST31, H3
+000051 2dec                      	mov ZL, ST14
+000052 9124                      	lpm H3, Z
+000053 2632                      	eor ST41, H3
+000054 2440                      	eor ST12, ST11
+000055 2451                      	eor ST22, ST21
+000056 2462                      	eor ST32, ST31
+000057 2473                      	eor ST42, ST41
+000058 2484                      	eor ST13, ST12
+000059 2495                      	eor ST23, ST22
+00005a 24a6                      	eor ST33, ST32
+00005b 24b7                      	eor ST43, ST42
+00005c 24c8                      	eor ST14, ST13
+00005d 24d9                      	eor ST24, ST23
+00005e 24ea                      	eor ST34, ST33
+00005f 24fb                      	eor ST44, ST43
+000060 0f00                      	lsl H1
+000061 f408                      	brcc keyexp1
+000062 2701                      	eor H1, H2
+000063 9209                      keyexp1:st Y+, ST11
+000064 9219                      	st Y+, ST21
+000065 9229                      	st Y+, ST31
+000066 9239                      	st Y+, ST41
+000067 9249                      	st Y+, ST12
+000068 9259                      	st Y+, ST22
+000069 9269                      	st Y+, ST32
+00006a 9279                      	st Y+, ST42
+00006b 9289                      	st Y+, ST13
+00006c 9299                      	st Y+, ST23
+00006d 92a9                      	st Y+, ST33
+00006e 92b9                      	st Y+, ST43
+00006f 92c9                      	st Y+, ST14
+000070 92d9                      	st Y+, ST24
+000071 92e9                      	st Y+, ST34
+000072 92f9                      	st Y+, ST44
+000073 360c                      	cpi H1, $6c
+000074 f691                      	brne keyexp0
+000075 9508                      	ret
+                                 
+                                 
+                                 ;;; ***************************************************************************
+                                 ;;; 
+                                 ;;; ENCRYPT 
+                                 ;;; This routine encrypts a 128 bit plaintext block (supplied in ST11-ST44), 
+                                 ;;; using an expanded key given in YH:YL. The resulting 128 bit ciphertext
+                                 ;;; block is stored in ST11-ST44.
+                                 ;;;
+                                 ;;; Parameters:
+                                 ;;;         YH:YL:	pointer to expanded key
+                                 ;;;         ST11-ST44:  128 bit plaintext block
+                                 ;;; Touched registers:
+                                 ;;;     ST11-ST44,H1,H2,H3,I,ZH,ZL,YH,YL
+                                 ;;; Clock cycles:	2739
+                                 		
+                                 encrypt:
+000076 e05a                      	ldi I, 10
+000077 d029                      encryp1:rcall addroundkey	; AddRoundKey
+000078 e1f0                      	ldi ZH, high(sbox<<1)	; SubBytes + ShiftRows
+000079 2de0                      	mov ZL, ST11
+00007a 9004                      	lpm ST11, Z
+00007b 2de4                      	mov ZL, ST12
+00007c 9044                      	lpm ST12, Z
+00007d 2de8                      	mov ZL, ST13
+00007e 9084                      	lpm ST13, Z
+00007f 2dec                      	mov ZL, ST14
+000080 90c4                      	lpm ST14, Z
+000081 2d01                      	mov H1, ST21
+000082 2de5                      	mov ZL, ST22
+000083 9014                      	lpm ST21, Z
+000084 2de9                      	mov ZL, ST23
+000085 9054                      	lpm ST22, Z
+000086 2ded                      	mov ZL, ST24
+000087 9094                      	lpm ST23, Z
+000088 2fe0                      	mov ZL, H1
+000089 90d4                      	lpm ST24, Z
+00008a 2d02                      	mov H1, ST31
+00008b 2dea                      	mov ZL, ST33
+00008c 9024                      	lpm ST31, Z
+00008d 2fe0                      	mov ZL, H1
+00008e 90a4                      	lpm ST33, Z
+00008f 2d06                      	mov H1, ST32
+000090 2dee                      	mov ZL, ST34
+000091 9064                      	lpm ST32, Z
+000092 2fe0                      	mov ZL, H1
+000093 90e4                      	lpm ST34, Z
+000094 2d0f                      	mov H1, ST44
+000095 2deb                      	mov ZL, ST43
+000096 90f4                      	lpm ST44, Z
+000097 2de7                      	mov ZL, ST42
+000098 90b4                      	lpm ST43, Z
+000099 2de3                      	mov ZL, ST41
+00009a 9074                      	lpm ST42, Z
+00009b 2fe0                      	mov ZL, H1
+00009c 9034                      	lpm ST41, Z
+00009d 955a                      	dec I
+00009e f011                      	breq addroundkey	; AddRoundKey
+00009f d022                      	rcall mixcolumns	; MixColumns
+0000a0 cfd6                      	rjmp encryp1
+                                 
+                                 
+                                 ;;; ***************************************************************************
+                                 ;;; 
+                                 ;;; ADDROUNDKEY
+                                 ;;; This routine adds a round key to the state matrix (AddRoundKey). 
+                                 ;;;
+                                 ;;; Note: This routine is part of the encryption and decryption routines. You
+                                 ;;; normally won't be interested in calling this routine directly.
+                                 ;;;
+                                 ;;; Parameters:
+                                 ;;;         ST11-ST44:  128 bit state matrix
+                                 ;;;         YH:YL:      pointer to ram location
+                                 ;;; Touched registers:
+                                 ;;;     ST11-ST41,H1,YH,YL
+                                 
+                                 addroundkey:
+0000a1 9109                      	ld H1, Y+
+0000a2 2600                      	eor ST11, H1
+0000a3 9109                      	ld H1, Y+
+0000a4 2610                      	eor ST21, H1
+0000a5 9109                      	ld H1, Y+
+0000a6 2620                      	eor ST31, H1
+0000a7 9109                      	ld H1, Y+
+0000a8 2630                      	eor ST41, H1
+0000a9 9109                      	ld H1, Y+
+0000aa 2640                      	eor ST12, H1
+0000ab 9109                      	ld H1, Y+
+0000ac 2650                      	eor ST22, H1
+0000ad 9109                      	ld H1, Y+
+0000ae 2660                      	eor ST32, H1
+0000af 9109                      	ld H1, Y+
+0000b0 2670                      	eor ST42, H1
+0000b1 9109                      	ld H1, Y+
+0000b2 2680                      	eor ST13, H1
+0000b3 9109                      	ld H1, Y+
+0000b4 2690                      	eor ST23, H1
+0000b5 9109                      	ld H1, Y+
+0000b6 26a0                      	eor ST33, H1
+0000b7 9109                      	ld H1, Y+
+0000b8 26b0                      	eor ST43, H1
+0000b9 9109                      	ld H1, Y+
+0000ba 26c0                      	eor ST14, H1
+0000bb 9109                      	ld H1, Y+
+0000bc 26d0                      	eor ST24, H1
+0000bd 9109                      	ld H1, Y+
+0000be 26e0                      	eor ST34, H1
+0000bf 9109                      	ld H1, Y+
+0000c0 26f0                      	eor ST44, H1
+0000c1 9508                      	ret
+                                 
+                                 
+                                 ;;; ***************************************************************************
+                                 ;;; 
+                                 ;;; MIXCOLUMNS
+                                 ;;; This routine applies the MixColumns diffusion operator to the whole 
+                                 ;;; state matrix. The code is used for both encryption and decryption.
+                                 ;;;
+                                 ;;; Note: This routine is part of the encryption and decryption routines. You
+                                 ;;; normally wont be interested in calling this routine directly.
+                                 ;;;
+                                 ;;; Parameters:
+                                 ;;;         ST11-ST44:  128 bit state matrix
+                                 ;;; Touched registers:
+                                 ;;;     ST11-ST41,H1,H2,H3,ZH,ZL
+                                 
+                                 mixcolumns:
+0000c2 e1f2                      	ldi ZH, high(xtime<<1)
+0000c3 2d00                      	mov H1, ST11
+0000c4 2501                      	eor H1, ST21
+0000c5 2502                      	eor H1, ST31
+0000c6 2503                      	eor H1, ST41
+0000c7 2d10                      	mov H2, ST11
+0000c8 2d20                      	mov H3, ST11
+0000c9 2521                      	eor H3, ST21
+0000ca 2fe2                      	mov ZL, H3
+0000cb 9124                      	lpm H3, Z
+0000cc 2602                      	eor ST11, H3
+0000cd 2600                      	eor ST11, H1
+0000ce 2d21                      	mov H3, ST21
+0000cf 2522                      	eor H3, ST31
+0000d0 2fe2                      	mov ZL, H3
+0000d1 9124                      	lpm H3, Z
+0000d2 2612                      	eor ST21, H3
+0000d3 2610                      	eor ST21, H1
+0000d4 2d22                      	mov H3, ST31
+0000d5 2523                      	eor H3, ST41
+0000d6 2fe2                      	mov ZL, H3
+0000d7 9124                      	lpm H3, Z
+0000d8 2622                      	eor ST31, H3
+0000d9 2620                      	eor ST31, H1
+0000da 2d23                      	mov H3, ST41
+0000db 2721                      	eor H3, H2
+0000dc 2fe2                      	mov ZL, H3
+0000dd 9124                      	lpm H3, Z
+0000de 2632                      	eor ST41, H3
+0000df 2630                      	eor ST41, H1
+                                 	
+0000e0 2d04                      	mov H1, ST12
+0000e1 2505                      	eor H1, ST22
+0000e2 2506                      	eor H1, ST32
+0000e3 2507                      	eor H1, ST42
+0000e4 2d14                      	mov H2, ST12
+0000e5 2d24                      	mov H3, ST12
+0000e6 2525                      	eor H3, ST22
+0000e7 2fe2                      	mov ZL, H3
+0000e8 9124                      	lpm H3, Z
+0000e9 2642                      	eor ST12, H3
+0000ea 2640                      	eor ST12, H1
+0000eb 2d25                      	mov H3, ST22
+0000ec 2526                      	eor H3, ST32
+0000ed 2fe2                      	mov ZL, H3
+0000ee 9124                      	lpm H3, Z
+0000ef 2652                      	eor ST22, H3
+0000f0 2650                      	eor ST22, H1
+0000f1 2d26                      	mov H3, ST32
+0000f2 2527                      	eor H3, ST42
+0000f3 2fe2                      	mov ZL, H3
+0000f4 9124                      	lpm H3, Z
+0000f5 2662                      	eor ST32, H3
+0000f6 2660                      	eor ST32, H1
+0000f7 2d27                      	mov H3, ST42
+0000f8 2721                      	eor H3, H2
+0000f9 2fe2                      	mov ZL, H3
+0000fa 9124                      	lpm H3, Z
+0000fb 2672                      	eor ST42, H3
+0000fc 2670                      	eor ST42, H1
+                                 	
+0000fd 2d08                      	mov H1, ST13
+0000fe 2509                      	eor H1, ST23
+0000ff 250a                      	eor H1, ST33
+000100 250b                      	eor H1, ST43
+000101 2d18                      	mov H2, ST13
+000102 2d28                      	mov H3, ST13
+000103 2529                      	eor H3, ST23
+000104 2fe2                      	mov ZL, H3
+000105 9124                      	lpm H3, Z
+000106 2682                      	eor ST13, H3
+000107 2680                      	eor ST13, H1
+000108 2d29                      	mov H3, ST23
+000109 252a                      	eor H3, ST33
+00010a 2fe2                      	mov ZL, H3
+00010b 9124                      	lpm H3, Z
+00010c 2692                      	eor ST23, H3
+00010d 2690                      	eor ST23, H1
+00010e 2d2a                      	mov H3, ST33
+00010f 252b                      	eor H3, ST43
+000110 2fe2                      	mov ZL, H3
+000111 9124                      	lpm H3, Z
+000112 26a2                      	eor ST33, H3
+000113 26a0                      	eor ST33, H1
+000114 2d2b                      	mov H3, ST43
+000115 2721                      	eor H3, H2
+000116 2fe2                      	mov ZL, H3
+000117 9124                      	lpm H3, Z
+000118 26b2                      	eor ST43, H3
+000119 26b0                      	eor ST43, H1
+                                 	
+00011a 2d0c                      	mov H1, ST14
+00011b 250d                      	eor H1, ST24
+00011c 250e                      	eor H1, ST34
+00011d 250f                      	eor H1, ST44
+00011e 2d1c                      	mov H2, ST14
+00011f 2d2c                      	mov H3, ST14
+000120 252d                      	eor H3, ST24
+000121 2fe2                      	mov ZL, H3
+000122 9124                      	lpm H3, Z
+000123 26c2                      	eor ST14, H3
+000124 26c0                      	eor ST14, H1
+000125 2d2d                      	mov H3, ST24
+000126 252e                      	eor H3, ST34
+000127 2fe2                      	mov ZL, H3
+000128 9124                      	lpm H3, Z
+000129 26d2                      	eor ST24, H3
+00012a 26d0                      	eor ST24, H1
+00012b 2d2e                      	mov H3, ST34
+00012c 252f                      	eor H3, ST44
+00012d 2fe2                      	mov ZL, H3
+00012e 9124                      	lpm H3, Z
+00012f 26e2                      	eor ST34, H3
+000130 26e0                      	eor ST34, H1
+000131 2d2f                      	mov H3, ST44
+000132 2721                      	eor H3, H2
+000133 2fe2                      	mov ZL, H3
+000134 9124                      	lpm H3, Z
+000135 26f2                      	eor ST44, H3
+000136 26f0                      	eor ST44, H1
+000137 9508                      	ret
+                                 
+                                 		
+                                 ;;; ***************************************************************************
+                                 ;;; 
+                                 ;;; DECRYPT
+                                 ;;; This routine decrypts a 128 bit ciphertext block (given in ST11-ST44), 
+                                 ;;; using an expanded key supplied in the 16*11 memory locations BEFORE YH:YL
+                                 ;;; (YH:YL points behind the last byte of the key material!). The resulting 128
+                                 ;;; bit plaintext block is stored in ST11-ST44. 
+                                 ;;;
+                                 ;;; Parameters:
+                                 ;;;         YH:YL:	pointer behind key
+                                 ;;;         ST11-ST44:  128 bit ciphertext block
+                                 ;;; Touched registers:
+                                 ;;;     ST11-ST41,H1,I,ZH,ZL,YH,YL
+                                 ;;; Clock cycles:	3579
+                                 
+                                 decrypt:
+000138 e05a                      	ldi I, 10
+000139 9760                      	sbiw YL,16
+00013a df66                      	rcall addroundkey	; AddRoundKey
+00013b 97a0                      	sbiw YL,32
+00013c e1f1                      decryp1:ldi ZH, high(isbox<<1)	; SubBytes + ShiftRows
+00013d 2de0                      	mov ZL, ST11
+00013e 9004                      	lpm ST11, Z
+00013f 2de4                      	mov ZL, ST12
+000140 9044                      	lpm ST12, Z
+000141 2de8                      	mov ZL, ST13
+000142 9084                      	lpm ST13, Z
+000143 2dec                      	mov ZL, ST14
+000144 90c4                      	lpm ST14, Z
+000145 2d01                      	mov H1, ST21
+000146 2ded                      	mov ZL, ST24
+000147 9014                      	lpm ST21, Z
+000148 2de9                      	mov ZL, ST23
+000149 90d4                      	lpm ST24, Z
+00014a 2de5                      	mov ZL, ST22
+00014b 9094                      	lpm ST23, Z
+00014c 2fe0                      	mov ZL, H1
+00014d 9054                      	lpm ST22, Z
+00014e 2d0a                      	mov H1, ST33
+00014f 2de2                      	mov ZL, ST31
+000150 90a4                      	lpm ST33, Z
+000151 2fe0                      	mov ZL, H1
+000152 9024                      	lpm ST31, Z
+000153 2d0e                      	mov H1, ST34
+000154 2de6                      	mov ZL, ST32
+000155 90e4                      	lpm ST34, Z
+000156 2fe0                      	mov ZL, H1
+000157 9064                      	lpm ST32, Z
+000158 2d03                      	mov H1, ST41
+000159 2de7                      	mov ZL, ST42
+00015a 9034                      	lpm ST41, Z
+00015b 2deb                      	mov ZL, ST43
+00015c 9074                      	lpm ST42, Z
+00015d 2def                      	mov ZL, ST44
+00015e 90b4                      	lpm ST43, Z
+00015f 2fe0                      	mov ZL, H1
+000160 90f4                      	lpm ST44, Z
+000161 df3f                      	rcall addroundkey	; AddRoundKey
+000162 97a0                      	sbiw YL,32
+000163 955a                      	dec I
+000164 f409                      	brne PC+2
+000165 9508                      	ret
+000166 e1f2                      	ldi ZH, high(xtime<<1)	; preprocessing to use MixColumns
+000167 2de0                      	mov ZL, ST11
+000168 25e2                      	eor ZL, ST31
+000169 9114                      	lpm H2, Z
+00016a 2fe1                      	mov ZL, H2
+00016b 9104                      	lpm H1, Z
+00016c 2de1                      	mov ZL, ST21
+00016d 25e3                      	eor ZL, ST41
+00016e 9114                      	lpm H2, Z
+00016f 2fe1                      	mov ZL, H2
+000170 9114                      	lpm H2, Z
+000171 2600                      	eor ST11, H1
+000172 2611                      	eor ST21, H2
+000173 2620                      	eor ST31, H1
+000174 2631                      	eor ST41, H2
+000175 2de4                      	mov ZL, ST12
+000176 25e6                      	eor ZL, ST32
+000177 9114                      	lpm H2, Z
+000178 2fe1                      	mov ZL, H2
+000179 9104                      	lpm H1, Z
+00017a 2de5                      	mov ZL, ST22
+00017b 25e7                      	eor ZL, ST42
+00017c 9114                      	lpm H2, Z
+00017d 2fe1                      	mov ZL, H2
+00017e 9114                      	lpm H2, Z
+00017f 2640                      	eor ST12, H1
+000180 2651                      	eor ST22, H2
+000181 2660                      	eor ST32, H1
+000182 2671                      	eor ST42, H2
+000183 2de8                      	mov ZL, ST13
+000184 25ea                      	eor ZL, ST33
+000185 9114                      	lpm H2, Z
+000186 2fe1                      	mov ZL, H2
+000187 9104                      	lpm H1, Z
+000188 2de9                      	mov ZL, ST23
+000189 25eb                      	eor ZL, ST43
+00018a 9114                      	lpm H2, Z
+00018b 2fe1                      	mov ZL, H2
+00018c 9114                      	lpm H2, Z
+00018d 2680                      	eor ST13, H1
+00018e 2691                      	eor ST23, H2
+00018f 26a0                      	eor ST33, H1
+000190 26b1                      	eor ST43, H2
+000191 2dec                      	mov ZL, ST14
+000192 25ee                      	eor ZL, ST34
+000193 9114                      	lpm H2, Z
+000194 2fe1                      	mov ZL, H2
+000195 9104                      	lpm H1, Z
+000196 2ded                      	mov ZL, ST24
+000197 25ef                      	eor ZL, ST44
+000198 9114                      	lpm H2, Z
+000199 2fe1                      	mov ZL, H2
+00019a 9114                      	lpm H2, Z
+00019b 26c0                      	eor ST14, H1
+00019c 26d1                      	eor ST24, H2
+00019d 26e0                      	eor ST34, H1
+00019e 26f1                      	eor ST44, H2
+00019f df22                      	rcall mixcolumns	; MixColumns
+0001a0 cf9b                      	rjmp decryp1
+                                 
+                                 ;;; ***************************************************************************
+                                 ;;; 
+                                 ;;; S-BOX and "xtime" tables
+                                 ;;; Rijndael consists of a non-linear step in its rounds (called "sbox step"), 
+                                 ;;; here implemented with two hard-coded lookup tables (the sbox itself and its
+                                 ;;; inverse for decryption). To provide an implementation secure against power 
+                                 ;;; analysis attacks, the polynomial multiplication in the MixColumns operation 
+                                 ;;; is done via an auxiliary lookup table called xtime. See [1] for details.
+                                 ;;;
+                                 ;;; The three tables have to be aligned to a flash position with its lower 
+                                 ;;; address byte equal to $00. In assembler syntax: low(sbox<<1) == 0.
+                                 ;;; To ensure the proper alignment of the sboxes, the assembler directive
+                                 ;;; .ORG is used (below the sboxes are defined to begin at $800). Note, that 
+                                 ;;; any other address can be used as well, as long as the lower byte is equal 
+                                 ;;; to $00.
+                                 ;;;
+                                 ;;; The order of the sboxes is totally arbitrary. They even do not have to be
+                                 ;;; allocated in adjacent memory areas.
+                                 	
+                                 .CSEG	
+                                 .ORG $800
+                                 	
+                                 sbox:
+000800 7c63
+000801 7b77
+000802 6bf2
+000803 c56f
+000804 0130
+000805 2b67
+000806 d7fe
+000807 76ab                      .db $63,$7c,$77,$7b,$f2,$6b,$6f,$c5,$30,$01,$67,$2b,$fe,$d7,$ab,$76 
+000808 82ca
+000809 7dc9
+00080a 59fa
+00080b f047
+00080c d4ad
+00080d afa2
+00080e a49c
+00080f c072                      .db $ca,$82,$c9,$7d,$fa,$59,$47,$f0,$ad,$d4,$a2,$af,$9c,$a4,$72,$c0 
+000810 fdb7
+000811 2693
+000812 3f36
+000813 ccf7
+000814 a534
+000815 f1e5
+000816 d871
+000817 1531                      .db $b7,$fd,$93,$26,$36,$3f,$f7,$cc,$34,$a5,$e5,$f1,$71,$d8,$31,$15 
+000818 c704
+000819 c323
+00081a 9618
+00081b 9a05
+00081c 1207
+00081d e280
+00081e 27eb
+00081f 75b2                      .db $04,$c7,$23,$c3,$18,$96,$05,$9a,$07,$12,$80,$e2,$eb,$27,$b2,$75 
+000820 8309
+000821 1a2c
+000822 6e1b
+000823 a05a
+000824 3b52
+000825 b3d6
+000826 e329
+000827 842f                      .db $09,$83,$2c,$1a,$1b,$6e,$5a,$a0,$52,$3b,$d6,$b3,$29,$e3,$2f,$84 
+000828 d153
+000829 ed00
+00082a fc20
+00082b 5bb1
+00082c cb6a
+00082d 39be
+00082e 4c4a
+00082f cf58                      .db $53,$d1,$00,$ed,$20,$fc,$b1,$5b,$6a,$cb,$be,$39,$4a,$4c,$58,$cf 
+000830 efd0
+000831 fbaa
+000832 4d43
+000833 8533
+000834 f945
+000835 7f02
+000836 3c50
+000837 a89f                      .db $d0,$ef,$aa,$fb,$43,$4d,$33,$85,$45,$f9,$02,$7f,$50,$3c,$9f,$a8 
+000838 a351
+000839 8f40
+00083a 9d92
+00083b f538
+00083c b6bc
+00083d 21da
+00083e ff10
+00083f d2f3                      .db $51,$a3,$40,$8f,$92,$9d,$38,$f5,$bc,$b6,$da,$21,$10,$ff,$f3,$d2 
+000840 0ccd
+000841 ec13
+000842 975f
+000843 1744
+000844 a7c4
+000845 3d7e
+000846 5d64
+000847 7319                      .db $cd,$0c,$13,$ec,$5f,$97,$44,$17,$c4,$a7,$7e,$3d,$64,$5d,$19,$73 
+000848 8160
+000849 dc4f
+00084a 2a22
+00084b 8890
+00084c ee46
+00084d 14b8
+00084e 5ede
+00084f db0b                      .db $60,$81,$4f,$dc,$22,$2a,$90,$88,$46,$ee,$b8,$14,$de,$5e,$0b,$db 
+000850 32e0
+000851 0a3a
+000852 0649
+000853 5c24
+000854 d3c2
+000855 62ac
+000856 9591
+000857 79e4                      .db $e0,$32,$3a,$0a,$49,$06,$24,$5c,$c2,$d3,$ac,$62,$91,$95,$e4,$79 
+000858 c8e7
+000859 6d37
+00085a d58d
+00085b a94e
+00085c 566c
+00085d eaf4
+00085e 7a65
+00085f 08ae                      .db $e7,$c8,$37,$6d,$8d,$d5,$4e,$a9,$6c,$56,$f4,$ea,$65,$7a,$ae,$08 
+000860 78ba
+000861 2e25
+000862 a61c
+000863 c6b4
+000864 dde8
+000865 1f74
+000866 bd4b
+000867 8a8b                      .db $ba,$78,$25,$2e,$1c,$a6,$b4,$c6,$e8,$dd,$74,$1f,$4b,$bd,$8b,$8a 
+000868 3e70
+000869 66b5
+00086a 0348
+00086b 0ef6
+00086c 3561
+00086d b957
+00086e c186
+00086f 9e1d                      .db $70,$3e,$b5,$66,$48,$03,$f6,$0e,$61,$35,$57,$b9,$86,$c1,$1d,$9e 
+000870 f8e1
+000871 1198
+000872 d969
+000873 948e
+000874 1e9b
+000875 e987
+000876 55ce
+000877 df28                      .db $e1,$f8,$98,$11,$69,$d9,$8e,$94,$9b,$1e,$87,$e9,$ce,$55,$28,$df 
+000878 a18c
+000879 0d89
+00087a e6bf
+00087b 6842
+00087c 9941
+00087d 0f2d
+00087e 54b0
+00087f 16bb                      .db $8c,$a1,$89,$0d,$bf,$e6,$42,$68,$41,$99,$2d,$0f,$b0,$54,$bb,$16 
+                                 
+                                 isbox:
+000880 0952
+000881 d56a
+000882 3630
+000883 38a5
+000884 40bf
+000885 9ea3
+000886 f381
+000887 fbd7                      .db $52,$09,$6a,$d5,$30,$36,$a5,$38,$bf,$40,$a3,$9e,$81,$f3,$d7,$fb 
+000888 e37c
+000889 8239
+00088a 2f9b
+00088b 87ff
+00088c 8e34
+00088d 4443
+00088e dec4
+00088f cbe9                      .db $7c,$e3,$39,$82,$9b,$2f,$ff,$87,$34,$8e,$43,$44,$c4,$de,$e9,$cb 
+000890 7b54
+000891 3294
+000892 c2a6
+000893 3d23
+000894 4cee
+000895 0b95
+000896 fa42
+000897 4ec3                      .db $54,$7b,$94,$32,$a6,$c2,$23,$3d,$ee,$4c,$95,$0b,$42,$fa,$c3,$4e 
+000898 2e08
+000899 66a1
+00089a d928
+00089b b224
+00089c 5b76
+00089d 49a2
+00089e 8b6d
+00089f 25d1                      .db $08,$2e,$a1,$66,$28,$d9,$24,$b2,$76,$5b,$a2,$49,$6d,$8b,$d1,$25 
+0008a0 f872
+0008a1 64f6
+0008a2 6886
+0008a3 1698
+0008a4 a4d4
+0008a5 cc5c
+0008a6 655d
+0008a7 92b6                      .db $72,$f8,$f6,$64,$86,$68,$98,$16,$d4,$a4,$5c,$cc,$5d,$65,$b6,$92 
+0008a8 706c
+0008a9 5048
+0008aa edfd
+0008ab dab9
+0008ac 155e
+0008ad 5746
+0008ae 8da7
+0008af 849d                      .db $6c,$70,$48,$50,$fd,$ed,$b9,$da,$5e,$15,$46,$57,$a7,$8d,$9d,$84 
+0008b0 d890
+0008b1 00ab
+0008b2 bc8c
+0008b3 0ad3
+0008b4 e4f7
+0008b5 0558
+0008b6 b3b8
+0008b7 0645                      .db $90,$d8,$ab,$00,$8c,$bc,$d3,$0a,$f7,$e4,$58,$05,$b8,$b3,$45,$06 
+0008b8 2cd0
+0008b9 8f1e
+0008ba 3fca
+0008bb 020f
+0008bc afc1
+0008bd 03bd
+0008be 1301
+0008bf 6b8a                      .db $d0,$2c,$1e,$8f,$ca,$3f,$0f,$02,$c1,$af,$bd,$03,$01,$13,$8a,$6b 
+0008c0 913a
+0008c1 4111
+0008c2 674f
+0008c3 eadc
+0008c4 f297
+0008c5 cecf
+0008c6 b4f0
+0008c7 73e6                      .db $3a,$91,$11,$41,$4f,$67,$dc,$ea,$97,$f2,$cf,$ce,$f0,$b4,$e6,$73 
+0008c8 ac96
+0008c9 2274
+0008ca ade7
+0008cb 8535
+0008cc f9e2
+0008cd e837
+0008ce 751c
+0008cf 6edf                      .db $96,$ac,$74,$22,$e7,$ad,$35,$85,$e2,$f9,$37,$e8,$1c,$75,$df,$6e 
+0008d0 f147
+0008d1 711a
+0008d2 291d
+0008d3 89c5
+0008d4 b76f
+0008d5 0e62
+0008d6 18aa
+0008d7 1bbe                      .db $47,$f1,$1a,$71,$1d,$29,$c5,$89,$6f,$b7,$62,$0e,$aa,$18,$be,$1b 
+0008d8 56fc
+0008d9 4b3e
+0008da d2c6
+0008db 2079
+0008dc db9a
+0008dd fec0
+0008de cd78
+0008df f45a                      .db $fc,$56,$3e,$4b,$c6,$d2,$79,$20,$9a,$db,$c0,$fe,$78,$cd,$5a,$f4 
+0008e0 dd1f
+0008e1 33a8
+0008e2 0788
+0008e3 31c7
+0008e4 12b1
+0008e5 5910
+0008e6 8027
+0008e7 5fec                      .db $1f,$dd,$a8,$33,$88,$07,$c7,$31,$b1,$12,$10,$59,$27,$80,$ec,$5f 
+0008e8 5160
+0008e9 a97f
+0008ea b519
+0008eb 0d4a
+0008ec e52d
+0008ed 9f7a
+0008ee c993
+0008ef ef9c                      .db $60,$51,$7f,$a9,$19,$b5,$4a,$0d,$2d,$e5,$7a,$9f,$93,$c9,$9c,$ef 
+0008f0 e0a0
+0008f1 4d3b
+0008f2 2aae
+0008f3 b0f5
+0008f4 ebc8
+0008f5 3cbb
+0008f6 5383
+0008f7 6199                      .db $a0,$e0,$3b,$4d,$ae,$2a,$f5,$b0,$c8,$eb,$bb,$3c,$83,$53,$99,$61 
+0008f8 2b17
+0008f9 7e04
+0008fa 77ba
+0008fb 26d6
+0008fc 69e1
+0008fd 6314
+0008fe 2155
+0008ff 7d0c                      .db $17,$2b,$04,$7e,$ba,$77,$d6,$26,$e1,$69,$14,$63,$55,$21,$0c,$7d 
+                                 
+                                 xtime:
+000900 0200
+000901 0604
+000902 0a08
+000903 0e0c
+000904 1210
+000905 1614
+000906 1a18
+000907 1e1c                      .db $00,$02,$04,$06,$08,$0a,$0c,$0e,$10,$12,$14,$16,$18,$1a,$1c,$1e
+000908 2220
+000909 2624
+00090a 2a28
+00090b 2e2c
+00090c 3230
+00090d 3634
+00090e 3a38
+00090f 3e3c                      .db $20,$22,$24,$26,$28,$2a,$2c,$2e,$30,$32,$34,$36,$38,$3a,$3c,$3e
+000910 4240
+000911 4644
+000912 4a48
+000913 4e4c
+000914 5250
+000915 5654
+000916 5a58
+000917 5e5c                      .db $40,$42,$44,$46,$48,$4a,$4c,$4e,$50,$52,$54,$56,$58,$5a,$5c,$5e
+000918 6260
+000919 6664
+00091a 6a68
+00091b 6e6c
+00091c 7270
+00091d 7674
+00091e 7a78
+00091f 7e7c                      .db $60,$62,$64,$66,$68,$6a,$6c,$6e,$70,$72,$74,$76,$78,$7a,$7c,$7e
+000920 8280
+000921 8684
+000922 8a88
+000923 8e8c
+000924 9290
+000925 9694
+000926 9a98
+000927 9e9c                      .db $80,$82,$84,$86,$88,$8a,$8c,$8e,$90,$92,$94,$96,$98,$9a,$9c,$9e
+000928 a2a0
+000929 a6a4
+00092a aaa8
+00092b aeac
+00092c b2b0
+00092d b6b4
+00092e bab8
+00092f bebc                      .db $a0,$a2,$a4,$a6,$a8,$aa,$ac,$ae,$b0,$b2,$b4,$b6,$b8,$ba,$bc,$be
+000930 c2c0
+000931 c6c4
+000932 cac8
+000933 cecc
+000934 d2d0
+000935 d6d4
+000936 dad8
+000937 dedc                      .db $c0,$c2,$c4,$c6,$c8,$ca,$cc,$ce,$d0,$d2,$d4,$d6,$d8,$da,$dc,$de
+000938 e2e0
+000939 e6e4
+00093a eae8
+00093b eeec
+00093c f2f0
+00093d f6f4
+00093e faf8
+00093f fefc                      .db $e0,$e2,$e4,$e6,$e8,$ea,$ec,$ee,$f0,$f2,$f4,$f6,$f8,$fa,$fc,$fe
+000940 191b
+000941 1d1f
+000942 1113
+000943 1517
+000944 090b
+000945 0d0f
+000946 0103
+000947 0507                      .db $1b,$19,$1f,$1d,$13,$11,$17,$15,$0b,$09,$0f,$0d,$03,$01,$07,$05
+000948 393b
+000949 3d3f
+00094a 3133
+00094b 3537
+00094c 292b
+00094d 2d2f
+00094e 2123
+00094f 2527                      .db $3b,$39,$3f,$3d,$33,$31,$37,$35,$2b,$29,$2f,$2d,$23,$21,$27,$25
+000950 595b
+000951 5d5f
+000952 5153
+000953 5557
+000954 494b
+000955 4d4f
+000956 4143
+000957 4547                      .db $5b,$59,$5f,$5d,$53,$51,$57,$55,$4b,$49,$4f,$4d,$43,$41,$47,$45
+000958 797b
+000959 7d7f
+00095a 7173
+00095b 7577
+00095c 696b
+00095d 6d6f
+00095e 6163
+00095f 6567                      .db $7b,$79,$7f,$7d,$73,$71,$77,$75,$6b,$69,$6f,$6d,$63,$61,$67,$65
+000960 999b
+000961 9d9f
+000962 9193
+000963 9597
+000964 898b
+000965 8d8f
+000966 8183
+000967 8587                      .db $9b,$99,$9f,$9d,$93,$91,$97,$95,$8b,$89,$8f,$8d,$83,$81,$87,$85
+000968 b9bb
+000969 bdbf
+00096a b1b3
+00096b b5b7
+00096c a9ab
+00096d adaf
+00096e a1a3
+00096f a5a7                      .db $bb,$b9,$bf,$bd,$b3,$b1,$b7,$b5,$ab,$a9,$af,$ad,$a3,$a1,$a7,$a5
+000970 d9db
+000971 dddf
+000972 d1d3
+000973 d5d7
+000974 c9cb
+000975 cdcf
+000976 c1c3
+000977 c5c7                      .db $db,$d9,$df,$dd,$d3,$d1,$d7,$d5,$cb,$c9,$cf,$cd,$c3,$c1,$c7,$c5
+000978 f9fb
+000979 fdff
+00097a f1f3
+00097b f5f7
+00097c e9eb
+00097d edef
+00097e e1e3
+00097f e5e7                      .db $fb,$f9,$ff,$fd,$f3,$f1,$f7,$f5,$eb,$e9,$ef,$ed,$e3,$e1,$e7,$e5
+                                 
+                                 
+                                 xtime2:
+                                 ;;; compute the xtime value instead of using a table
+                                 ;;; Multiplies a byte by 2 in the Galois field 2^8
+                                 ;;; The result is given an dreturned in the temp register
+                                 ;;; We will LSL (Logical shift left) the input to the right by 1 (mult by 2), then check if there was a carry over, if there was, we XOR the result with 0x1b
+000980 0f66                      lsl temp
+000981 f410                      brcc xtime2_1
+000982 e18b                      ldi r24, 0x1b
+000983 2768                      eor temp, r24
+                                 xtime2_1:
+000984 9508                      ret
 
 
 RESOURCE USE INFORMATION
@@ -1178,39 +2299,39 @@ counted separately from r26..r31 here.
 .dseg memory usage only counts static data declared with .byte
 
 "ATmega644P" register use summary:
-x  :   0 y  :   0 z  :   0 r0 :   0 r1 :   0 r2 :   0 r3 :   0 r4 :   0 
-r5 :   0 r6 :   0 r7 :   0 r8 :   0 r9 :   0 r10:   0 r11:   0 r12:   0 
-r13:   0 r14:   0 r15:   0 r16:   1 r17:   0 r18:   0 r19:   0 r20:   0 
-r21:   0 r22:   0 r23:   0 r24:   0 r25:   0 r26:   0 r27:   0 r28:   0 
-r29:   0 r30:   0 r31:   0 
-Registers used: 1 out of 35 (2.9%)
+x  :   0 y  :  32 z  : 100 r0 :  18 r1 :  17 r2 :  17 r3 :  17 r4 :  17 
+r5 :  17 r6 :  17 r7 :  17 r8 :  17 r9 :  17 r10:  17 r11:  17 r12:  17 
+r13:  17 r14:  17 r15:  17 r16:  97 r17:  38 r18:  88 r19:   0 r20:   0 
+r21:   4 r22:   2 r23:   0 r24:   2 r25:   0 r26:   0 r27:   0 r28:   6 
+r29:   3 r30:  78 r31:  11 
+Registers used: 28 out of 35 (80.0%)
 
 "ATmega644P" instruction use summary:
 .lds  :   0 .sts  :   0 adc   :   0 add   :   0 adiw  :   0 and   :   0 
 andi  :   0 asr   :   0 bclr  :   0 bld   :   0 brbc  :   0 brbs  :   0 
-brcc  :   0 brcs  :   0 break :   0 breq  :   0 brge  :   0 brhc  :   0 
+brcc  :   2 brcs  :   0 break :   0 breq  :   1 brge  :   0 brhc  :   0 
 brhs  :   0 brid  :   0 brie  :   0 brlo  :   0 brlt  :   0 brmi  :   0 
-brne  :   0 brpl  :   0 brsh  :   0 brtc  :   0 brts  :   0 brvc  :   0 
+brne  :   2 brpl  :   0 brsh  :   0 brtc  :   0 brts  :   0 brvc  :   0 
 brvs  :   0 bset  :   0 bst   :   0 call  :   0 cbi   :   0 cbr   :   0 
-clc   :   0 clh   :   0 cli   :   0 cln   :   0 clr   :   0 cls   :   0 
+clc   :   0 clh   :   0 cli   :   1 cln   :   0 clr   :   0 cls   :   0 
 clt   :   0 clv   :   0 clz   :   0 com   :   0 cp    :   0 cpc   :   0 
-cpi   :   0 cpse  :   0 dec   :   0 eor   :   0 fmul  :   0 fmuls :   0 
-fmulsu:   0 icall :   0 ijmp  :   0 in    :   0 inc   :   1 jmp   :   0 
-ld    :   0 ldd   :   0 ldi   :   0 lds   :   0 lpm   :   0 lsl   :   0 
-lsr   :   0 mov   :   0 movw  :   0 mul   :   0 muls  :   0 mulsu :   0 
-neg   :   0 nop   :   0 or    :   0 ori   :   0 out   :   0 pop   :   0 
-push  :   0 rcall :   0 ret   :   0 reti  :   0 rjmp  :   1 rol   :   0 
+cpi   :   1 cpse  :   0 dec   :   2 eor   : 119 fmul  :   0 fmuls :   0 
+fmulsu:   0 icall :   0 ijmp  :   0 in    :   0 inc   :   0 jmp   :   0 
+ld    :  16 ldd   :   0 ldi   :  22 lds   :   0 lpm   : 168 lsl   :   2 
+lsr   :   0 mov   : 100 movw  :   0 mul   :   0 muls  :   0 mulsu :   0 
+neg   :   0 nop   :   0 or    :   0 ori   :   0 out   :   2 pop   :   0 
+push  :   0 rcall :   8 ret   :   5 reti  :   0 rjmp  :   4 rol   :   0 
 ror   :   0 sbc   :   0 sbci  :   0 sbi   :   0 sbic  :   0 sbis  :   0 
-sbiw  :   0 sbr   :   0 sbrc  :   0 sbrs  :   0 sec   :   0 seh   :   0 
+sbiw  :   3 sbr   :   0 sbrc  :   0 sbrs  :   0 sec   :   0 seh   :   0 
 sei   :   0 sen   :   0 ser   :   0 ses   :   0 set   :   0 sev   :   0 
-sez   :   0 sleep :   0 spm   :   0 st    :   0 std   :   0 sts   :   0 
+sez   :   0 sleep :   0 spm   :   0 st    :  16 std   :   0 sts   :   0 
 sub   :   0 subi  :   0 swap  :   0 tst   :   0 wdr   :   0 
-Instructions used: 2 out of 113 (1.8%)
+Instructions used: 18 out of 113 (15.9%)
 
 "ATmega644P" memory use summary [bytes]:
 Segment   Begin    End      Code   Data   Used    Size   Use%
 ---------------------------------------------------------------
-[.cseg] 0x000000 0x000004      4      0      4   65536   0.0%
+[.cseg] 0x000000 0x00130a    812    800   1612   65536   2.5%
 [.dseg] 0x000100 0x000100      0      0      0    4096   0.0%
 [.eseg] 0x000000 0x000000      0      0      0    2048   0.0%
 

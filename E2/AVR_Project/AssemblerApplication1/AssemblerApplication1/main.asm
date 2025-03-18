@@ -197,11 +197,15 @@ main:	cli			; initialize stack
 main0:	rjmp main0		; stop
 	
 
-text:
-.db $32,$43,$f6,$a8,$88,$5a,$30,$8d,$31,$31,$98,$a2,$e0,$37,$07,$34
-key:
-.db $2b,$7e,$15,$16,$28,$ae,$d2,$a6,$ab,$f7,$15,$88,$09,$cf,$4f,$3c
+;;;text:
+;;;.db $32,$43,$f6,$a8,$88,$5a,$30,$8d,$31,$31,$98,$a2,$e0,$37,$07,$34
+;;;key:
+;;;.db $2b,$7e,$15,$16,$28,$ae,$d2,$a6,$ab,$f7,$15,$88,$09,$cf,$4f,$3c
 
+text:
+.db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+key:
+.db $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
 ;;; ***************************************************************************
 ;;; 
@@ -718,3 +722,16 @@ xtime:
 .db $bb,$b9,$bf,$bd,$b3,$b1,$b7,$b5,$ab,$a9,$af,$ad,$a3,$a1,$a7,$a5
 .db $db,$d9,$df,$dd,$d3,$d1,$d7,$d5,$cb,$c9,$cf,$cd,$c3,$c1,$c7,$c5
 .db $fb,$f9,$ff,$fd,$f3,$f1,$f7,$f5,$eb,$e9,$ef,$ed,$e3,$e1,$e7,$e5
+
+
+xtime2:
+;;; compute the xtime value instead of using a table
+;;; Multiplies a byte by 2 in the Galois field 2^8
+;;; The result is given an dreturned in the temp register
+;;; We will LSL (Logical shift left) the input to the right by 1 (mult by 2), then check if there was a carry over, if there was, we XOR the result with 0x1b = 00011011
+lsl temp
+brcc xtime2_1
+ldi r24, 0x1b
+eor temp, r24
+xtime2_1:
+ret

@@ -1,5 +1,5 @@
 
-AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 18 13:47:01 2025
+AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 18 15:19:10 2025
 
 
 EQU  SIGNATURE_000 0000001e
@@ -826,4 +826,42 @@ EQU  URXC1addr    00000038
 EQU  UDRE1addr    0000003a
 EQU  UTXC1addr    0000003c
 EQU  INT_VECTORS_SIZE 0000003e
-CSEG start        00000000
+DEF  ST11         r0
+DEF  ST21         r1
+DEF  ST31         r2
+DEF  ST41         r3
+DEF  ST12         r4
+DEF  ST22         r5
+DEF  ST32         r6
+DEF  ST42         r7
+DEF  ST13         r8
+DEF  ST23         r9
+DEF  ST33         r10
+DEF  ST43         r11
+DEF  ST14         r12
+DEF  ST24         r13
+DEF  ST34         r14
+DEF  ST44         r15
+DEF  H1           r16
+DEF  H2           r17
+DEF  H3           r18
+DEF  I            r21
+DEF  temp         r22
+CSEG main         00000000
+CSEG key          0000003b
+CSEG key_expand   00000043
+CSEG text         00000033
+CSEG encrypt      00000076
+CSEG decrypt      00000138
+CSEG main0        00000032
+CSEG sbox         00000800
+CSEG keyexp1      00000063
+CSEG keyexp0      00000047
+CSEG encryp1      00000077
+CSEG addroundkey  000000a1
+CSEG mixcolumns   000000c2
+CSEG xtime        00000900
+CSEG decryp1      0000013c
+CSEG isbox        00000880
+CSEG xtime2       00000980
+CSEG xtime2_1     00000984
