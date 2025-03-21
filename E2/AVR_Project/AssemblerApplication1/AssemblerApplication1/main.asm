@@ -729,9 +729,21 @@ xtime2:
 ;;; Multiplies a byte by 2 in the Galois field 2^8
 ;;; The result is given an dreturned in the temp register
 ;;; We will LSL (Logical shift left) the input to the right by 1 (mult by 2), then check if there was a carry over, if there was, we XOR the result with 0x1b = 00011011
-lsl temp
-brcc xtime2_1
-ldi r24, 0x1b
-eor temp, r24
-xtime2_1:
-ret
+; Logic : result = (input << 1) ^ (0x1b if carry else 0)
+	lsl temp
+	brcc xtime2_1
+	ldi r24, 0x1b
+	eor temp, r24
+	xtime2_1:
+	ret
+
+xtime3:
+; Logic : result = (input << 1) ^ (0x1b if carry else 0)
+; Make it branchless
+    lsl temp         ; Shift temp left – sets the carry flag if bit7 was 1.
+    clr r24          ; Clear r25 (set it to 0).
+    sbc r24, r24     ; Subtract r25 from r25 with carry.
+                     ; If carry was set, r25 becomes 0xFF; otherwise 0x00.
+    andi r24, 0x1B   ; r25 becomes 0x1B if carry was set, else 0x00.
+    eor temp, r24    ; Apply the conditional XOR.
+    ret
