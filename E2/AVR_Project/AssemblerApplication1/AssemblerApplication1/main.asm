@@ -648,6 +648,179 @@ decryp1:ldi ZH, high(isbox<<1)	; SubBytes + ShiftRows
 	rjmp decryp1
 
 ;;; ***************************************************************************
+;;; To avoid the out of address space error, we have to place these functions here (because of .ORG $800)
+
+xtime2:
+;;; compute the xtime value instead of using a table
+;;; Multiplies a byte by 2 in the Galois field 2^8
+;;; The result is given an dreturned in the temp register
+;;; We will LSL (Logical shift left) the input to the right by 1 (mult by 2), then check if there was a carry over, if there was, we XOR the result with 0x1b = 00011011
+; Logic : result = (input << 1) ^ (0x1b if carry else 0)
+	lsl temp
+	brcc xtime2_1
+	ldi r24, 0x1b
+	eor temp, r24
+	xtime2_1:
+	ret
+
+xtime3:
+; Data independent design
+; Logic : result = (input << 1) ^ (0x1b if carry else 0)
+; Make it branchless
+    lsl temp         ; Shift temp left – sets the carry flag if bit7 was 1.
+    clr r24          ; Clear r25 (set it to 0).
+    sbc r24, r24     ; Subtract r25 from r25 with carry.
+                     ; If carry was set, r25 becomes 0xFF; otherwise 0x00.
+    andi r24, 0x1B   ; r25 becomes 0x1B if carry was set, else 0x00.
+    eor temp, r24    ; Apply the conditional XOR.
+    ret
+
+mixcolumns2:
+    ; For xtime2
+
+	;; Part 1
+	; Calculate H1 = ST11 ^ ST21 ^ ST31 ^ ST41
+	mov H1, ST11
+	eor H1, ST21
+	eor H1, ST31
+	eor H1, ST41
+
+	; Calculate ST11 := ST11 ^ xtime2(ST11 ^ ST21) ^ H1
+	mov temp, ST11
+	eor temp, ST21
+	rcall xtime2
+	eor ST11, temp
+	eor ST11, H1
+
+	; Calculate ST21 := ST21 ^ xtime2(ST21 ^ ST31) ^ H1
+	mov temp, ST21
+	eor temp, ST31
+	rcall xtime2
+	eor ST21, temp
+	eor ST21, H1
+
+	; Calculate ST31 := ST31 ^ xtime2(ST31 ^ ST41) ^ H1
+	mov temp, ST31
+	eor temp, ST41
+	rcall xtime2
+	eor ST31, temp
+	eor ST31, H1
+
+	; Calculate ST41 := ST41 ^ xtime2(ST41 ^ ST11) ^ H1
+	mov temp, ST41
+	eor temp, ST11
+	rcall xtime2
+	eor ST41, temp
+	eor ST41, H1
+
+	;; Part 2
+	; Calculate H1 = ST12 ^ ST22 ^ ST32 ^ ST42
+	mov H1, ST12
+	eor H1, ST22
+	eor H1, ST32
+	eor H1, ST42
+
+	; Calculate ST12 := ST12 ^ xtime2(ST12 ^ ST22) ^ H1
+	mov temp, ST12
+	eor temp, ST22
+	rcall xtime2
+	eor ST12, temp
+	eor ST12, H1
+
+	; Calculate ST22 := ST22 ^ xtime2(ST22 ^ ST32) ^ H1
+	mov temp, ST22
+	eor temp, ST32
+	rcall xtime2
+	eor ST22, temp
+	eor ST22, H1
+
+	; Calculate ST32 := ST32 ^ xtime2(ST32 ^ ST42) ^ H1
+	mov temp, ST32
+	eor temp, ST42
+	rcall xtime2
+	eor ST32, temp
+	eor ST32, H1
+
+	; Calculate ST42 := ST42 ^ xtime2(ST42 ^ ST12) ^ H1
+	mov temp, ST42
+	eor temp, ST12
+	rcall xtime2
+	eor ST42, temp
+	eor ST42, H1
+
+	;; Part 3
+	; Calculate H1 = ST11 ^ ST21 ^ ST31 ^ ST41
+	mov H1, ST13
+	eor H1, ST23
+	eor H1, ST33
+	eor H1, ST43
+
+	; Calculate ST11 := ST11 ^ xtime2(ST11 ^ ST21) ^ H1
+	mov temp, ST13
+	eor temp, ST23
+	rcall xtime2
+	eor ST13, temp
+	eor ST13, H1
+
+	; Calculate ST21 := ST21 ^ xtime2(ST21 ^ ST31) ^ H1
+	mov temp, ST23
+	eor temp, ST33
+	rcall xtime2
+	eor ST23, temp
+	eor ST23, H1
+
+	; Calculate ST31 := ST31 ^ xtime2(ST31 ^ ST41) ^ H1
+	mov temp, ST33
+	eor temp, ST43
+	rcall xtime2
+	eor ST33, temp
+	eor ST33, H1
+
+	; Calculate ST41 := ST41 ^ xtime2(ST41 ^ ST11) ^ H1
+	mov temp, ST43
+	eor temp, ST13
+	rcall xtime2
+	eor ST43, temp
+	eor ST43, H1
+
+	;; Part 4
+	; Calculate H1 = ST12 ^ ST22 ^ ST32 ^ ST42
+	mov H1, ST14
+	eor H1, ST24
+	eor H1, ST34
+	eor H1, ST44
+
+	; Calculate ST12 := ST12 ^ xtime2(ST12 ^ ST22) ^ H1
+	mov temp, ST14
+	eor temp, ST24
+	rcall xtime2
+	eor ST14, temp
+	eor ST14, H1
+
+	; Calculate ST22 := ST22 ^ xtime2(ST22 ^ ST32) ^ H1
+	mov temp, ST24
+	eor temp, ST34
+	rcall xtime2
+	eor ST24, temp
+	eor ST24, H1
+
+	; Calculate ST32 := ST32 ^ xtime2(ST32 ^ ST42) ^ H1
+	mov temp, ST34
+	eor temp, ST44
+	rcall xtime2
+	eor ST34, temp
+	eor ST34, H1
+
+	; Calculate ST42 := ST42 ^ xtime2(ST42 ^ ST12) ^ H1
+	mov temp, ST44
+	eor temp, ST14
+	rcall xtime2
+	eor ST44, temp
+	eor ST44, H1
+
+	ret
+
+;;; ***************************************************************************
 ;;; 
 ;;; S-BOX and "xtime" tables
 ;;; Rijndael consists of a non-linear step in its rounds (called "sbox step"), 
@@ -722,29 +895,3 @@ xtime:
 .db $bb,$b9,$bf,$bd,$b3,$b1,$b7,$b5,$ab,$a9,$af,$ad,$a3,$a1,$a7,$a5
 .db $db,$d9,$df,$dd,$d3,$d1,$d7,$d5,$cb,$c9,$cf,$cd,$c3,$c1,$c7,$c5
 .db $fb,$f9,$ff,$fd,$f3,$f1,$f7,$f5,$eb,$e9,$ef,$ed,$e3,$e1,$e7,$e5
-
-
-xtime2:
-;;; compute the xtime value instead of using a table
-;;; Multiplies a byte by 2 in the Galois field 2^8
-;;; The result is given an dreturned in the temp register
-;;; We will LSL (Logical shift left) the input to the right by 1 (mult by 2), then check if there was a carry over, if there was, we XOR the result with 0x1b = 00011011
-; Logic : result = (input << 1) ^ (0x1b if carry else 0)
-	lsl temp
-	brcc xtime2_1
-	ldi r24, 0x1b
-	eor temp, r24
-	xtime2_1:
-	ret
-
-xtime3:
-; Data independent design
-; Logic : result = (input << 1) ^ (0x1b if carry else 0)
-; Make it branchless
-    lsl temp         ; Shift temp left – sets the carry flag if bit7 was 1.
-    clr r24          ; Clear r25 (set it to 0).
-    sbc r24, r24     ; Subtract r25 from r25 with carry.
-                     ; If carry was set, r25 becomes 0xFF; otherwise 0x00.
-    andi r24, 0x1B   ; r25 becomes 0x1B if carry was set, else 0x00.
-    eor temp, r24    ; Apply the conditional XOR.
-    ret
