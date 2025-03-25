@@ -1,6 +1,0 @@
-
-AVRASM ver. 2.1.57  C:\Users\gauti\OneDrive - UCL\Documents\UCL - EPL\Master\Master 1 Q2\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 25 14:14:33 2025
-
-[builtin](2): error: Cannot find include file: m644pdef.inc
-C:\Users\gauti\OneDrive - UCL\Documents\UCL - EPL\Master\Master 1 Q2\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm(0): '[builtin]' included form here
-C:\Users\gauti\OneDrive - UCL\Documents\UCL - EPL\Master\Master 1 Q2\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm(111): error: Cannot find include file: m644Pdef.inc
