@@ -738,6 +738,7 @@ xtime2:
 	ret
 
 xtime3:
+; Data independent design
 ; Logic : result = (input << 1) ^ (0x1b if carry else 0)
 ; Make it branchless
     lsl temp         ; Shift temp left – sets the carry flag if bit7 was 1.
