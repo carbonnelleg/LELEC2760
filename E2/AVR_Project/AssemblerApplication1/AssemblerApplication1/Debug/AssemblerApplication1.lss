@@ -1,5 +1,5 @@
 
-AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 25 14:45:29 2025
+AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 25 14:51:20 2025
 
 [builtin](2): Including file 'C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\m644pdef.inc'
 C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm(111): Including file 'C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\m644Pdef.inc'
@@ -1544,7 +1544,7 @@ C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\
 00009c 9034                      	lpm ST41, Z
 00009d 955a                      	dec I
 00009e f011                      	breq addroundkey	; AddRoundKey
-00009f d022                      	rcall mixcolumns	; MixColumns
+00009f d10c                      	rcall mixcolumns2	; MixColumns
 0000a0 cfd6                      	rjmp encryp1
                                  
                                  
@@ -2031,6 +2031,151 @@ C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\
                                  
 00020c 9508                      	ret
                                  
+                                 mixcolumns3:
+                                     ; For xtime2
+                                 
+                                 	;; Part 1
+                                 	; Calculate H1 = ST11 ^ ST21 ^ ST31 ^ ST41
+00020d 2d00                      	mov H1, ST11
+00020e 2501                      	eor H1, ST21
+00020f 2502                      	eor H1, ST31
+000210 2503                      	eor H1, ST41
+                                 
+                                 	; Calculate ST11 := ST11 ^ xtime2(ST11 ^ ST21) ^ H1
+000211 2d60                      	mov temp, ST11
+000212 2561                      	eor temp, ST21
+000213 df92                      	rcall xtime3
+000214 2606                      	eor ST11, temp
+000215 2600                      	eor ST11, H1
+                                 
+                                 	; Calculate ST21 := ST21 ^ xtime2(ST21 ^ ST31) ^ H1
+000216 2d61                      	mov temp, ST21
+000217 2562                      	eor temp, ST31
+000218 df8d                      	rcall xtime3
+000219 2616                      	eor ST21, temp
+00021a 2610                      	eor ST21, H1
+                                 
+                                 	; Calculate ST31 := ST31 ^ xtime2(ST31 ^ ST41) ^ H1
+00021b 2d62                      	mov temp, ST31
+00021c 2563                      	eor temp, ST41
+00021d df88                      	rcall xtime3
+00021e 2626                      	eor ST31, temp
+00021f 2620                      	eor ST31, H1
+                                 
+                                 	; Calculate ST41 := ST41 ^ xtime2(ST41 ^ ST11) ^ H1
+000220 2d63                      	mov temp, ST41
+000221 2560                      	eor temp, ST11
+000222 df83                      	rcall xtime3
+000223 2636                      	eor ST41, temp
+000224 2630                      	eor ST41, H1
+                                 
+                                 	;; Part 2
+                                 	; Calculate H1 = ST12 ^ ST22 ^ ST32 ^ ST42
+000225 2d04                      	mov H1, ST12
+000226 2505                      	eor H1, ST22
+000227 2506                      	eor H1, ST32
+000228 2507                      	eor H1, ST42
+                                 
+                                 	; Calculate ST12 := ST12 ^ xtime2(ST12 ^ ST22) ^ H1
+000229 2d64                      	mov temp, ST12
+00022a 2565                      	eor temp, ST22
+00022b df7a                      	rcall xtime3
+00022c 2646                      	eor ST12, temp
+00022d 2640                      	eor ST12, H1
+                                 
+                                 	; Calculate ST22 := ST22 ^ xtime2(ST22 ^ ST32) ^ H1
+00022e 2d65                      	mov temp, ST22
+00022f 2566                      	eor temp, ST32
+000230 df75                      	rcall xtime3
+000231 2656                      	eor ST22, temp
+000232 2650                      	eor ST22, H1
+                                 
+                                 	; Calculate ST32 := ST32 ^ xtime2(ST32 ^ ST42) ^ H1
+000233 2d66                      	mov temp, ST32
+000234 2567                      	eor temp, ST42
+000235 df70                      	rcall xtime3
+000236 2666                      	eor ST32, temp
+000237 2660                      	eor ST32, H1
+                                 
+                                 	; Calculate ST42 := ST42 ^ xtime2(ST42 ^ ST12) ^ H1
+000238 2d67                      	mov temp, ST42
+000239 2564                      	eor temp, ST12
+00023a df6b                      	rcall xtime3
+00023b 2676                      	eor ST42, temp
+00023c 2670                      	eor ST42, H1
+                                 
+                                 	;; Part 3
+                                 	; Calculate H1 = ST11 ^ ST21 ^ ST31 ^ ST41
+00023d 2d08                      	mov H1, ST13
+00023e 2509                      	eor H1, ST23
+00023f 250a                      	eor H1, ST33
+000240 250b                      	eor H1, ST43
+                                 
+                                 	; Calculate ST11 := ST11 ^ xtime2(ST11 ^ ST21) ^ H1
+000241 2d68                      	mov temp, ST13
+000242 2569                      	eor temp, ST23
+000243 df62                      	rcall xtime3
+000244 2686                      	eor ST13, temp
+000245 2680                      	eor ST13, H1
+                                 
+                                 	; Calculate ST21 := ST21 ^ xtime2(ST21 ^ ST31) ^ H1
+000246 2d69                      	mov temp, ST23
+000247 256a                      	eor temp, ST33
+000248 df5d                      	rcall xtime3
+000249 2696                      	eor ST23, temp
+00024a 2690                      	eor ST23, H1
+                                 
+                                 	; Calculate ST31 := ST31 ^ xtime2(ST31 ^ ST41) ^ H1
+00024b 2d6a                      	mov temp, ST33
+00024c 256b                      	eor temp, ST43
+00024d df58                      	rcall xtime3
+00024e 26a6                      	eor ST33, temp
+00024f 26a0                      	eor ST33, H1
+                                 
+                                 	; Calculate ST41 := ST41 ^ xtime2(ST41 ^ ST11) ^ H1
+000250 2d6b                      	mov temp, ST43
+000251 2568                      	eor temp, ST13
+000252 df53                      	rcall xtime3
+000253 26b6                      	eor ST43, temp
+000254 26b0                      	eor ST43, H1
+                                 
+                                 	;; Part 4
+                                 	; Calculate H1 = ST12 ^ ST22 ^ ST32 ^ ST42
+000255 2d0c                      	mov H1, ST14
+000256 250d                      	eor H1, ST24
+000257 250e                      	eor H1, ST34
+000258 250f                      	eor H1, ST44
+                                 
+                                 	; Calculate ST12 := ST12 ^ xtime2(ST12 ^ ST22) ^ H1
+000259 2d6c                      	mov temp, ST14
+00025a 256d                      	eor temp, ST24
+00025b df4a                      	rcall xtime3
+00025c 26c6                      	eor ST14, temp
+00025d 26c0                      	eor ST14, H1
+                                 
+                                 	; Calculate ST22 := ST22 ^ xtime2(ST22 ^ ST32) ^ H1
+00025e 2d6d                      	mov temp, ST24
+00025f 256e                      	eor temp, ST34
+000260 df45                      	rcall xtime3
+000261 26d6                      	eor ST24, temp
+000262 26d0                      	eor ST24, H1
+                                 
+                                 	; Calculate ST32 := ST32 ^ xtime2(ST32 ^ ST42) ^ H1
+000263 2d6e                      	mov temp, ST34
+000264 256f                      	eor temp, ST44
+000265 df40                      	rcall xtime3
+000266 26e6                      	eor ST34, temp
+000267 26e0                      	eor ST34, H1
+                                 
+                                 	; Calculate ST42 := ST42 ^ xtime2(ST42 ^ ST12) ^ H1
+000268 2d6f                      	mov temp, ST44
+000269 256c                      	eor temp, ST14
+00026a df3b                      	rcall xtime3
+00026b 26f6                      	eor ST44, temp
+00026c 26f0                      	eor ST44, H1
+                                 
+00026d 9508                      	ret
+                                 
                                  ;;; ***************************************************************************
                                  ;;; 
                                  ;;; S-BOX and "xtime" tables
@@ -2458,10 +2603,10 @@ counted separately from r26..r31 here.
 .dseg memory usage only counts static data declared with .byte
 
 "ATmega644P" register use summary:
-x  :   0 y  :  32 z  : 100 r0 :  23 r1 :  22 r2 :  22 r3 :  22 r4 :  22 
-r5 :  22 r6 :  22 r7 :  22 r8 :  22 r9 :  22 r10:  22 r11:  22 r12:  22 
-r13:  22 r14:  22 r15:  22 r16: 129 r17:  38 r18:  88 r19:   0 r20:   0 
-r21:   4 r22:  52 r23:   0 r24:   7 r25:   0 r26:   0 r27:   0 r28:   6 
+x  :   0 y  :  32 z  : 100 r0 :  28 r1 :  27 r2 :  27 r3 :  27 r4 :  27 
+r5 :  27 r6 :  27 r7 :  27 r8 :  27 r9 :  27 r10:  27 r11:  27 r12:  27 
+r13:  27 r14:  27 r15:  27 r16: 161 r17:  38 r18:  88 r19:   0 r20:   0 
+r21:   4 r22: 100 r23:   0 r24:   7 r25:   0 r26:   0 r27:   0 r28:   6 
 r29:   3 r30:  78 r31:  11 
 Registers used: 28 out of 35 (80.0%)
 
@@ -2474,12 +2619,12 @@ brne  :   2 brpl  :   0 brsh  :   0 brtc  :   0 brts  :   0 brvc  :   0
 brvs  :   0 bset  :   0 bst   :   0 call  :   0 cbi   :   0 cbr   :   0 
 clc   :   0 clh   :   0 cli   :   1 cln   :   0 clr   :   1 cls   :   0 
 clt   :   0 clv   :   0 clz   :   0 com   :   0 cp    :   0 cpc   :   0 
-cpi   :   1 cpse  :   0 dec   :   2 eor   : 180 fmul  :   0 fmuls :   0 
+cpi   :   1 cpse  :   0 dec   :   2 eor   : 240 fmul  :   0 fmuls :   0 
 fmulsu:   0 icall :   0 ijmp  :   0 in    :   0 inc   :   0 jmp   :   0 
 ld    :  16 ldd   :   0 ldi   :  22 lds   :   0 lpm   : 168 lsl   :   3 
-lsr   :   0 mov   : 120 movw  :   0 mul   :   0 muls  :   0 mulsu :   0 
+lsr   :   0 mov   : 140 movw  :   0 mul   :   0 muls  :   0 mulsu :   0 
 neg   :   0 nop   :   0 or    :   0 ori   :   0 out   :   2 pop   :   0 
-push  :   0 rcall :  24 ret   :   7 reti  :   0 rjmp  :   4 rol   :   0 
+push  :   0 rcall :  40 ret   :   8 reti  :   0 rjmp  :   4 rol   :   0 
 ror   :   0 sbc   :   1 sbci  :   0 sbi   :   0 sbic  :   0 sbis  :   0 
 sbiw  :   3 sbr   :   0 sbrc  :   0 sbrs  :   0 sec   :   0 seh   :   0 
 sei   :   0 sen   :   0 ser   :   0 ses   :   0 set   :   0 sev   :   0 
@@ -2490,7 +2635,7 @@ Instructions used: 21 out of 113 (18.6%)
 "ATmega644P" memory use summary [bytes]:
 Segment   Begin    End      Code   Data   Used    Size   Use%
 ---------------------------------------------------------------
-[.cseg] 0x000000 0x001300   1018    800   1818   65536   2.8%
+[.cseg] 0x000000 0x001300   1212    800   2012   65536   3.1%
 [.dseg] 0x000100 0x000100      0      0      0    4096   0.0%
 [.eseg] 0x000000 0x000000      0      0      0    2048   0.0%
 

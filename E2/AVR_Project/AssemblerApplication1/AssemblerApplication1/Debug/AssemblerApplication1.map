@@ -1,5 +1,5 @@
 
-AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 25 14:45:29 2025
+AVRASM ver. 2.2.7  C:\Dev\GIT\LELEC2760\E2\AVR_Project\AssemblerApplication1\AssemblerApplication1\main.asm Tue Mar 25 14:51:20 2025
 
 
 EQU  SIGNATURE_000 0000001e
@@ -859,6 +859,7 @@ CSEG keyexp1      00000063
 CSEG keyexp0      00000047
 CSEG encryp1      00000077
 CSEG addroundkey  000000a1
+CSEG mixcolumns2  000001ac
 CSEG mixcolumns   000000c2
 CSEG xtime        00000900
 CSEG decryp1      0000013c
@@ -866,4 +867,4 @@ CSEG isbox        00000880
 CSEG xtime2       000001a1
 CSEG xtime2_1     000001a5
 CSEG xtime3       000001a6
-CSEG mixcolumns2  000001ac
+CSEG mixcolumns3  0000020d

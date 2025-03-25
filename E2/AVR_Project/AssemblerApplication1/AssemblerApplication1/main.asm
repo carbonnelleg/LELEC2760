@@ -333,7 +333,7 @@ encryp1:rcall addroundkey	; AddRoundKey
 	lpm ST41, Z
 	dec I
 	breq addroundkey	; AddRoundKey
-	rcall mixcolumns	; MixColumns
+	rcall mixcolumns2	; MixColumns
 	rjmp encryp1
 
 
@@ -815,6 +815,151 @@ mixcolumns2:
 	mov temp, ST44
 	eor temp, ST14
 	rcall xtime2
+	eor ST44, temp
+	eor ST44, H1
+
+	ret
+
+mixcolumns3:
+    ; For xtime2
+
+	;; Part 1
+	; Calculate H1 = ST11 ^ ST21 ^ ST31 ^ ST41
+	mov H1, ST11
+	eor H1, ST21
+	eor H1, ST31
+	eor H1, ST41
+
+	; Calculate ST11 := ST11 ^ xtime2(ST11 ^ ST21) ^ H1
+	mov temp, ST11
+	eor temp, ST21
+	rcall xtime3
+	eor ST11, temp
+	eor ST11, H1
+
+	; Calculate ST21 := ST21 ^ xtime2(ST21 ^ ST31) ^ H1
+	mov temp, ST21
+	eor temp, ST31
+	rcall xtime3
+	eor ST21, temp
+	eor ST21, H1
+
+	; Calculate ST31 := ST31 ^ xtime2(ST31 ^ ST41) ^ H1
+	mov temp, ST31
+	eor temp, ST41
+	rcall xtime3
+	eor ST31, temp
+	eor ST31, H1
+
+	; Calculate ST41 := ST41 ^ xtime2(ST41 ^ ST11) ^ H1
+	mov temp, ST41
+	eor temp, ST11
+	rcall xtime3
+	eor ST41, temp
+	eor ST41, H1
+
+	;; Part 2
+	; Calculate H1 = ST12 ^ ST22 ^ ST32 ^ ST42
+	mov H1, ST12
+	eor H1, ST22
+	eor H1, ST32
+	eor H1, ST42
+
+	; Calculate ST12 := ST12 ^ xtime2(ST12 ^ ST22) ^ H1
+	mov temp, ST12
+	eor temp, ST22
+	rcall xtime3
+	eor ST12, temp
+	eor ST12, H1
+
+	; Calculate ST22 := ST22 ^ xtime2(ST22 ^ ST32) ^ H1
+	mov temp, ST22
+	eor temp, ST32
+	rcall xtime3
+	eor ST22, temp
+	eor ST22, H1
+
+	; Calculate ST32 := ST32 ^ xtime2(ST32 ^ ST42) ^ H1
+	mov temp, ST32
+	eor temp, ST42
+	rcall xtime3
+	eor ST32, temp
+	eor ST32, H1
+
+	; Calculate ST42 := ST42 ^ xtime2(ST42 ^ ST12) ^ H1
+	mov temp, ST42
+	eor temp, ST12
+	rcall xtime3
+	eor ST42, temp
+	eor ST42, H1
+
+	;; Part 3
+	; Calculate H1 = ST11 ^ ST21 ^ ST31 ^ ST41
+	mov H1, ST13
+	eor H1, ST23
+	eor H1, ST33
+	eor H1, ST43
+
+	; Calculate ST11 := ST11 ^ xtime2(ST11 ^ ST21) ^ H1
+	mov temp, ST13
+	eor temp, ST23
+	rcall xtime3
+	eor ST13, temp
+	eor ST13, H1
+
+	; Calculate ST21 := ST21 ^ xtime2(ST21 ^ ST31) ^ H1
+	mov temp, ST23
+	eor temp, ST33
+	rcall xtime3
+	eor ST23, temp
+	eor ST23, H1
+
+	; Calculate ST31 := ST31 ^ xtime2(ST31 ^ ST41) ^ H1
+	mov temp, ST33
+	eor temp, ST43
+	rcall xtime3
+	eor ST33, temp
+	eor ST33, H1
+
+	; Calculate ST41 := ST41 ^ xtime2(ST41 ^ ST11) ^ H1
+	mov temp, ST43
+	eor temp, ST13
+	rcall xtime3
+	eor ST43, temp
+	eor ST43, H1
+
+	;; Part 4
+	; Calculate H1 = ST12 ^ ST22 ^ ST32 ^ ST42
+	mov H1, ST14
+	eor H1, ST24
+	eor H1, ST34
+	eor H1, ST44
+
+	; Calculate ST12 := ST12 ^ xtime2(ST12 ^ ST22) ^ H1
+	mov temp, ST14
+	eor temp, ST24
+	rcall xtime3
+	eor ST14, temp
+	eor ST14, H1
+
+	; Calculate ST22 := ST22 ^ xtime2(ST22 ^ ST32) ^ H1
+	mov temp, ST24
+	eor temp, ST34
+	rcall xtime3
+	eor ST24, temp
+	eor ST24, H1
+
+	; Calculate ST32 := ST32 ^ xtime2(ST32 ^ ST42) ^ H1
+	mov temp, ST34
+	eor temp, ST44
+	rcall xtime3
+	eor ST34, temp
+	eor ST34, H1
+
+	; Calculate ST42 := ST42 ^ xtime2(ST42 ^ ST12) ^ H1
+	mov temp, ST44
+	eor temp, ST14
+	rcall xtime3
 	eor ST44, temp
 	eor ST44, H1
 
