@@ -13,7 +13,7 @@ def preprocess_traces(traces):
     return: return the preprocessed set of traces
     """
     
-    return traces[:, 2400:3800]
+    return traces[:, 2400:3800]/np.max(traces[:, 2400:3800], axis=1)[:, None]
 
 
 def dpa_byte(index, pts, traces):
