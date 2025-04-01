@@ -12,21 +12,39 @@ def preprocess_traces(traces):
     traces: raw traces.
     return: return the preprocessed set of traces
     """
-    return traces
+    
+    return traces[:, 2400:3800]
 
 
 def dpa_byte(index, pts, traces):
     """
     index: index of the byte on which to perform the attack.
-    pts: the plaintext of each encryption performed.
-    traces: the power measurements performed for each encryption.
+    pts: the plaintext of each encryption performed. (100, 16)
+    traces: the power measurements performed for each encryption. (100, 1400)
     return: an np.array with the key bytes, from highest probable to less probable
     """
+    key_scores = np.zeros(256)
 
-    # TODO
+    for k in range(256):
+        # Compute the hypothetical intermediate values for all encryptions.
+        m_i = sbox[pts[:, index] ^ k]
 
-    return np.arange(256)
+        # Split traces into groups based on m_i.
+        group0 = traces[m_i == 0, :]  # use rows corresponding to m_i==0
+        group1 = traces[m_i == 1, :]  # use rows corresponding to m_i==1
 
+        if group0.size == 0 or group1.size == 0:
+            # Avoid computing mean over empty groups.
+            key_scores[k] = 0
+        else:
+            # Compute difference of means for each time sample.
+            diff = np.mean(group1, axis=0) - np.mean(group0, axis=0)
+            # For example, use the maximum absolute difference as key score:
+            key_scores[k] = np.max(np.abs(diff))
+
+    # Sort the key candidates by their score in descending order.
+    key_bytes = np.argsort(key_scores)[::-1]
+    return key_bytes
 
 def run_full_dpa_known_key(pts, ks, trs, idx_bytes):
     print("Run DPA the with the known key for bytes idx: \n{}".format(idx_bytes))
@@ -55,7 +73,7 @@ if __name__ == "__main__":
     dataset = load_npz("attack_set_known_key.npz")
     plaintexts = dataset["xbyte"]
     keys = dataset["kv"]
-    traces = dataset["traces"].astype(np.float)
+    traces = dataset["traces"].astype(np.float32)
 
     # Amount trace taken
     am_tr = min(100, plaintexts.shape[0])
@@ -65,7 +83,7 @@ if __name__ == "__main__":
     traces = traces[:am_tr, :]
 
     # Uncomment the next line to plot the first trace
-    # plot_traces(traces[0,:])
+    #plot_traces(traces[0,:])
 
     # Preprocess traces
     traces = preprocess_traces(traces)
