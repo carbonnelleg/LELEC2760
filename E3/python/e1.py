@@ -12,7 +12,7 @@ def preprocess_traces(traces):
     traces: raw traces.
     return: return the preprocessed set of traces
     """
-    return traces
+    return traces[:, 2400:3800]
 
 
 def dpa_byte(index, pts, traces):
@@ -22,10 +22,21 @@ def dpa_byte(index, pts, traces):
     traces: the power measurements performed for each encryption.
     return: an np.array with the key bytes, from highest probable to less probable
     """
+    trace_true = np.zeros((256, traces.shape[1]))
+    trace_false = np.zeros((256, traces.shape[1]))
 
-    # TODO
+    for k_hyp in np.arange(256, dtype=np.uint8):
+        pts_i = pts[:, index]
+        xor_out = pts_i ^ k_hyp
+        sbox_out = sbox[xor_out]
+        if sbox_out % 2:
+            trace_true[k_hyp] += traces[i]
+        else:
+            trace_false[k_hyp] -= traces[i]
 
-    return np.arange(256)
+    trace_diff = trace_true - trace_false
+
+    return np.argsort(np.max(np.abs(trace_diff), axis=1))[::-1]
 
 
 def run_full_dpa_known_key(pts, ks, trs, idx_bytes):
@@ -55,10 +66,10 @@ if __name__ == "__main__":
     dataset = load_npz("attack_set_known_key.npz")
     plaintexts = dataset["xbyte"]
     keys = dataset["kv"]
-    traces = dataset["traces"].astype(np.float)
+    traces = dataset["traces"].astype(np.float64)
 
     # Amount trace taken
-    am_tr = min(100, plaintexts.shape[0])
+    am_tr = min(400, plaintexts.shape[0])
 
     plaintexts = plaintexts[:am_tr, :]
     keys = keys[:am_tr, :]
