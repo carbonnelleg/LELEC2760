@@ -73,7 +73,7 @@ if __name__ == "__main__":
     dataset = load_npz("attack_set_known_key.npz")
     plaintexts = dataset["xbyte"]
     keys = dataset["kv"]
-    traces = dataset["traces"].astype(np.float32)
+    traces = dataset["traces"].astype(np.float64)
 
     # Amount trace taken
     am_tr = min(1000, plaintexts.shape[0])
