@@ -1,6 +1,6 @@
 import numpy as np
 from utils_ps3 import load_npz
-from e1 import AK_SB_1byte, preprocess_traces
+from e1 import sbox, preprocess_traces
 import matplotlib.pyplot as plt
 import tqdm
 
@@ -11,16 +11,18 @@ os.chdir(root)
 hw = load_npz("HW.npz")["HW"][0]
 
 
-def pearson_corr(x, y):
+def dummy_pearson_corr(x, y):
     """
     x: raw traces, as an np.array of shape (nb_traces, nb_samples)
     y: model, as an np.array of shape (nb_traces, nb_samples)
     return: the pearson coefficient of each samples as a np.array of shape (1,nb_samples)
     """
 
-    # TODO
+    num = np.tensordot(x-np.mean(x, axis=0), y-np.mean(y, axis=0), axes=(0, 0))
+    den = np.sqrt(np.tensordot((x-np.mean(x, axis=0))**2,
+                               (y-np.mean(y, axis=0))**2, axes=(0, 0)))
 
-    return 0.0
+    return num/den
 
 
 def cpa_byte_out_sbox(index, pts, traces):
@@ -80,7 +82,7 @@ if __name__ == "__main__":
     dataset = load_npz("attack_set_known_key.npz")
     plaintexts = dataset["xbyte"]
     keys = dataset["kv"]
-    traces = dataset["traces"].astype(np.float)
+    traces = dataset["traces"].astype(np.float64)
 
     # Amount trace taken
     am_tr = min(100, plaintexts.shape[0])
