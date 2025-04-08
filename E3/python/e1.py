@@ -16,6 +16,70 @@ def preprocess_traces(traces):
     return traces[:, 2400:3800]/np.max(traces[:, 2400:3800], axis=1)[:, None]
 
 
+def vectorized_dpa_byte(index, pts, traces):
+    """
+    Vectorized version of the DPA attack for a given byte.
+    
+    index: the index of the byte on which to perform the attack.
+    pts: plaintexts used in encryptions (shape: [num_enc, 16]).
+    traces: power measurements (shape: [num_enc, num_samples]).
+    
+    return: an np.array of key candidates ordered from highest to lowest score.
+    """
+    # Create an array of candidate keys [0, 1, 2, ..., 255]
+    candidate_keys = np.arange(256, dtype=np.uint8)
+
+    # Compute the XOR between the plaintext byte and every candidate key in parallel.
+    # pts[:, index][:, None] has shape (num_enc, 1) and candidate_keys[None, :] has shape (1, 256).
+    xored = np.bitwise_xor(pts[:, index][:, None], candidate_keys[None, :])  # Shape: (num_enc, 256)
+
+    # Compute the hypothetical intermediate values for all encryptions and all candidate keys.
+    # Using broadcasting, m will have shape (num_enc, 256).
+    m = sbox[xored]
+
+    # Apply the leakage mask.
+    # Here we use: group1_mask = (m & 0b10000000) != 0 and group0_mask = inverse.
+    # Both masks have shape (num_enc, 256).
+    mask1 = ((m & 0b10000000) != 0).astype(np.float32)
+    mask0 = 1 - mask1
+
+    # For each candidate key, compute the sum (and subsequently the mean) of traces
+    # for each group. We do this with matrix multiplication.
+    # Sum over the encryption (trace) axis.
+    # For group1: shape becomes (256, num_samples)
+    sum1 = mask1.T @ traces  
+    # Similarly for group0.
+    sum0 = mask0.T @ traces  
+
+    # Count how many traces fall into each group for each candidate key.
+    count1 = mask1.sum(axis=0)  # Shape: (256,)
+    count0 = mask0.sum(axis=0)  # Shape: (256,)
+
+    # Avoid division by zero by identifying candidates with empty groups.
+    # We'll set these counts to np.nan later so that their final scores become zero.
+    count1[count1 == 0] = np.nan
+    count0[count0 == 0] = np.nan
+
+    # Compute the mean traces for each candidate key and group.
+    # The resulting shapes are (256, num_samples)
+    mean1 = sum1 / count1[:, None]
+    mean0 = sum0 / count0[:, None]
+
+    # Compute the difference-of-means for each candidate key.
+    diff = mean1 - mean0
+
+    # Compute a score per candidate: the maximum absolute difference
+    # across all time samples.
+    key_scores = np.max(np.abs(diff), axis=1)
+
+    # Replace any nan scores (from division by zero) with 0.
+    key_scores = np.nan_to_num(key_scores, nan=0.0)
+
+    # Sort the candidate keys by their score in descending order.
+    key_bytes = np.argsort(key_scores)[::-1]
+    return key_bytes
+
+
 def dpa_byte(index, pts, traces):
     """
     index: index of the byte on which to perform the attack.
@@ -30,8 +94,8 @@ def dpa_byte(index, pts, traces):
         m_i = sbox[pts[:, index] ^ k]
 
         # Split traces into groups based on m_i.
-        group0 = traces[m_i & 0b10000001 == 0, :]  # use rows corresponding to m_i==0
-        group1 = traces[m_i & 0b10000001 >= 1, :]  # use rows corresponding to m_i==1
+        group0 = traces[m_i & 0b10000000 == 0, :]  # use rows corresponding to MSB==0
+        group1 = traces[m_i & 0b10000000 >= 1, :]  # use rows corresponding to MSB==1
 
         if group0.size == 0 or group1.size == 0:
             # Avoid computing mean over empty groups.
@@ -53,7 +117,7 @@ def run_full_dpa_known_key(pts, ks, trs, idx_bytes):
     key_ranks = 16 * [0]
     for i in idx_bytes:
         print("Run DPA for byte {}...".format(i), end="", flush=True)
-        dpa_res = dpa_byte(i, pts, trs)
+        dpa_res = vectorized_dpa_byte(i, pts, trs)
         key_bytes_found[i] = dpa_res[0]
         key_ranks[i] = np.where(dpa_res == ks[0, i])[0]
         print("Rank of correct key: {}".format(key_ranks[i]), end="")
