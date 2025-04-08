@@ -30,8 +30,8 @@ def dpa_byte(index, pts, traces):
         m_i = sbox[pts[:, index] ^ k]
 
         # Split traces into groups based on m_i.
-        group0 = traces[m_i == 0, :]  # use rows corresponding to m_i==0
-        group1 = traces[m_i == 1, :]  # use rows corresponding to m_i==1
+        group0 = traces[m_i & 0x1 == 0, :]  # use rows corresponding to m_i==0
+        group1 = traces[m_i & 0x1 == 1, :]  # use rows corresponding to m_i==1
 
         if group0.size == 0 or group1.size == 0:
             # Avoid computing mean over empty groups.
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     traces = dataset["traces"].astype(np.float32)
 
     # Amount trace taken
-    am_tr = min(100, plaintexts.shape[0])
+    am_tr = min(1000, plaintexts.shape[0])
 
     plaintexts = plaintexts[:am_tr, :]
     keys = keys[:am_tr, :]
