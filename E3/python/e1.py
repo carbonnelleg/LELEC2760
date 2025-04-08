@@ -140,7 +140,7 @@ if __name__ == "__main__":
     traces = dataset["traces"].astype(np.float64)
 
     # Amount trace taken
-    am_tr = min(1000, plaintexts.shape[0])
+    am_tr = min(700, plaintexts.shape[0])
 
     plaintexts = plaintexts[:am_tr, :]
     keys = keys[:am_tr, :]
