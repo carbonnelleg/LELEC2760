@@ -8,6 +8,15 @@ import os
 root = os.path.dirname(os.path.abspath(__file__))
 os.chdir(root)
 
+def gaussian_bell(x, mu, sigma):
+    """
+    x: numpy array of values
+    mu: mean of the Gaussian
+    sigma: standard deviation of the Gaussian
+    return: the value of the Gaussian bell at each point in x
+    """
+    return (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
+
 def display_bells_and_curves(us, ss):
     """
     us: numpy array containing the mean of each class
@@ -24,9 +33,8 @@ def display_bells_and_curves(us, ss):
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     
     # Left plot: Gaussian bells
-    bell = lambda x, u, s: (1 / (s * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - u) / s) ** 2)
     for i in range(len(us)):
-        axes[0].plot(x, bell(x, us[i], ss[i]), label=f"Class {i}")
+        axes[0].plot(x, gaussian_bell(x, us[i], ss[i]), label=f"Class {i}")
     axes[0].set_title("Gaussian Bells")
     axes[0].set_xlabel("x")
     axes[0].set_ylabel("Density")
@@ -67,13 +75,13 @@ def training_phase(index, time_idx, pts, ks, trs):
 
     # Select keys
     corr_block = corr_block[time_idx, :]  # shape: (256,)
-    corr_block = corr_block[ks] # shape: (nb_keys,)
+    #corr_block = corr_block[ks] # shape: (nb_keys,)
 
     # Compute the mean and std of each class
     us = np.mean(corr_block, axis=0)  # shape: (256,)
     ss = np.std(corr_block, axis=0)   # shape: (256,)
 
-    display_bells_and_curves(us, ss)
+    #display_bells_and_curves(us, ss)
 
     return us, ss
 
@@ -86,9 +94,29 @@ def online_phase(index, time_idx, models, atck_pts, atck_trs):
     atck_trs: traces of the attack set
     return: a numpy array containing the probability of each byte value.
     """
-    
-    return np.zeros(256)
 
+    us, ss = models
+
+    # pts[:, index] has shape (nb_traces,)
+    # Broadcast with np.arange(256) to get a (256, nb_traces) array:
+    m_vec = np.bitwise_xor(atck_pts[:, index], np.arange(256).reshape(-1, 1))
+    m_vec = sbox[m_vec]       # Still shape (256, nb_traces)
+    hw_vec = hw[m_vec]        # Also (256, nb_traces)
+
+    # Compute the correlation block from the full attack traces (shape: (nb_traces, nb_samples))
+    corr_block = vector_pearson_corr(atck_trs, hw_vec)  # shape: (nb_samples, 256)
+    
+    # Now, select the time sample along the first axis
+    corr_block = corr_block[time_idx, :]  # now shape: (256,)
+    
+    # Compute the probability of each class based on the Gaussian model
+    prob = np.zeros(256)
+    for i in range(256):
+        prob[i] = gaussian_bell(corr_block[i], us[i], ss[i])
+
+    # Normalize the probabilities
+    prob /= np.sum(prob)
+    return prob
 
 def ta_byte(index, train_pts, train_ks, train_trs, atck_pts, atck_trs):
     """
@@ -106,9 +134,8 @@ def ta_byte(index, train_pts, train_ks, train_trs, atck_pts, atck_trs):
     models = training_phase(index, time_idx, train_pts, train_ks, train_trs)
 
     # Step 2: Online phase
-    atck_pts = atck_pts[:, index]
-    atck_trs = atck_trs[:, time_idx]
     prob = online_phase(index, time_idx, models, atck_pts, atck_trs)
+
     # Step 3: Sort the probabilities
     sorted_indices = np.argsort(prob)[::-1]
     return sorted_indices
