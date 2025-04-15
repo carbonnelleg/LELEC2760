@@ -10,6 +10,7 @@ os.chdir(root)
 
 hw = load_npz("HW.npz")["HW"][0]
 
+
 def pearson_corr(x, y):
     """
     x: raw traces, as an np.array of shape (nb_traces, nb_samples)
