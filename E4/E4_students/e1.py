@@ -1,6 +1,10 @@
 from main import random_bit_pattern,print_round_keys
-from aes import AES,sbox_inv
+from aes import AES,sbox_inv, inv_shift_rows
 import numpy as np
+
+import os
+root = os.path.dirname(os.path.abspath(__file__))
+os.chdir(root)
 
 def hw(x):
     """ 
@@ -44,9 +48,23 @@ def attack_bit_flip_last_round(cts,cts_f,locx,locy):
         locx : position of the byte to recover 
         locy : position of the byte to recover 
     """
-    #TODO
-    return 0
+    cts = np.array(cts)
+    cts_f = np.array(cts_f)
 
+    hw_scores_for_key_byte = np.zeros(256)
+    for key in range(256):
+        inv_sbox = sbox_inv[key ^ cts[:, locx,locy]]
+        inv_sbox_f = sbox_inv[key ^ cts_f[:, locx,locy]]
+
+        # get the hamming weight of the difference
+        hw_diff = np.sum(np.array([hw(inv_sbox[i] ^ inv_sbox_f[i]) for i in range(len(cts))]))
+        
+        # Store the score
+        hw_scores_for_key_byte[key] = hw_diff
+
+    # find the key with the highest score
+    key = np.argmin(hw_scores_for_key_byte)
+    return key
 
 if __name__ == "__main__":
     np.random.seed(0)
@@ -54,7 +72,7 @@ if __name__ == "__main__":
     key = np.random.randint(0,256,16)
     aes = AES(key)
     
-    n_faults = 16 # TODO: what number should we put here ?
+    n_faults = 160 # TODO: what number should we put here ?
 
     # Where the key will be stored
     last_round_key = np.zeros((4,4), dtype=np.uint8)

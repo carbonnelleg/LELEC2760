@@ -52,38 +52,51 @@ def display_bells_and_curves(us, ss):
     plt.tight_layout()
     plt.show()
 
+
+def find_time_idx(pts, ks, trs):
+    """
+    pts: the plaintexts used in the training set (shape: (nb_traces, nb_bytes))
+    ks: the keys used in the training set (shape: (nb_traces, nb_bytes))
+    trs: the traces of the training set (shape: (nb_traces, nb_samples))
+    return: the time sample to consider when building the model
+    """
+
+
 def training_phase(index, time_idx, pts, ks, trs):
     """
     index: index of the byte on which to perform the attack.
-    time_idx: time sample to consider when building the model
-    pts: the plaintexts used in the training set
-    ks: the keys used in the training set
-    trs: the traces of the training set
+    time_idx: time sample to consider when building the model (shape: (nb_bytes,))
+    pts: the plaintexts used in the training set (shape: (nb_traces, nb_bytes))
+    ks: the keys used in the training set (shape: (nb_traces, nb_bytes))
+    trs: the traces of the training set (shape: (nb_traces, nb_samples))
     return: the list [us,ss] where
         us: is a numpy array containing the mean of each class
         ss: is a numpy array containing the standard deviation of each class
     """
 
-    # pts[:, index] has shape (nb_traces,)
-    # Broadcast with np.arange(256) to get a (256, nb_traces) array:
-    m_vec = np.bitwise_xor(pts[:, index], np.arange(256).reshape(-1, 1))
-    m_vec = sbox[m_vec]       # Still shape (256, nb_traces)
-    hw_vec = hw[m_vec]        # Also (256, nb_traces)
+    # Create table for all the traces
+    m_vec = np.bitwise_xor(pts, ks)
+    m_vec = sbox[m_vec]     # shape: (nb_traces, nb_bytes)   
 
-    # Compute the correlation block:
-    corr_block = vector_pearson_corr(trs, hw_vec)  # shape: (nb_samples, 256)
+    # Compute the mand and variance of leakage knowing the key (so the y out of the s-box)
+    us = np.zeros(256)
+    ss = np.zeros(256)
 
-    # Select keys
-    corr_block = corr_block[time_idx, :]  # shape: (256,)
-    #corr_block = corr_block[ks] # shape: (nb_keys,)
+    for m_test_vec in range(256):
+        # Select traces where intermediate value == val
+        idxs = np.where(m_vec == m_test_vec)[0]
+        
+        if len(idxs) > 0:
+            samples = trs[idxs, time_idx[0]]
+            us[m_test_vec] = np.mean(samples)
+            ss[m_test_vec] = np.std(samples)
+        else:
+            us[m_test_vec] = 0.0
+            ss[m_test_vec] = 1.0  # Prevent division by zero during classification
 
-    # Compute the mean and std of each class
-    us = np.mean(corr_block, axis=0)  # shape: (256,)
-    ss = np.std(corr_block, axis=0)   # shape: (256,)
+    return [us, ss]
 
-    #display_bells_and_curves(us, ss)
 
-    return us, ss
 
 def online_phase(index, time_idx, models, atck_pts, atck_trs):
     """
@@ -129,8 +142,12 @@ def ta_byte(index, train_pts, train_ks, train_trs, atck_pts, atck_trs):
     return: a np.array with the key bytes, from highest probable to less probable
     """
 
+    # Step 0: Find the time sample to consider
+    time_idx = find_time_idx(train_pts, train_ks, train_trs)
+    print("Time sample to consider: {}".format(time_idx))
+
     # Step 1: Training phase
-    time_idx = 0
+    time_idx = np.zeros(16)# TODO : FIND IT
     models = training_phase(index, time_idx, train_pts, train_ks, train_trs)
 
     # Step 2: Online phase
