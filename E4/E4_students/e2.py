@@ -42,19 +42,35 @@ def compute_ciphertext_fpositions(locxSB9,locySB9):
     pos = [(i,(col_atck_post_MC+4-i)%4) for i in range(4)]
     return pos
 
-def generate_faults_patterns_postMC(locxSB9):
+def generate_faults_patterns_postMC(locxSB9): # TODO
     """
         Generate all the possible faults patterns after the MC operation, considering
         a fault occuring at a specific line.
         locxSB9: The line index of the fault. 
 
-        Return a list of tuples, each of tuples being a possible error patterns. 
+        Return a list of tuples, each of tuples being a possible error patterns. (Byte 1, Byte 2, Byte 3, Byte 4)
     """
-    #TODO
-    return [(0,0,0,0)]
+    # There should be 4 * 256 patterns before the MC, then we propagate the faults
+    patterns = []
+    for i in range(4):
+        for j in range(256):
+            pat = [0,0,0,0]
+            pat[i] = j
+            patterns.append(pat)
 
+    # Compute the resulting MC patterns for locxSB9
+    outputs = []
+    for pat in patterns:
+        # Compute the faulty column
+        col = (locxSB9 + 4 - i)%4
+        # Compute the faulty pattern
+        pat[col] = xtime(pat[col])
+        # Append the pattern to the list
+        outputs.append(tuple(pat))
+    return outputs
+        
 
-def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):
+def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):# TODO
     """
         Generate all the 4-bytes subkeys possibilities, taking into account
         the fault positions in the ciphertext and the fault patterns.
@@ -67,10 +83,24 @@ def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):
         is a possible subkey of 32-bits.
     """
 
-    # TODO 
-    return [(0,0,0,0)]
+    # Compute the possible values for the faulty ciphertext
+    possible_values = []
+    for i in range(4):
+        possible_values.append([ctf[fpos[i][0]][fpos[i][1]] ^ fpatterns[i][j] for j in range(4)])
 
-def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):
+    # Compute the possible values for the correct ciphertext
+    possible_values_correct = []
+    for i in range(4):
+        possible_values_correct.append([ct[fpos[i][0]][fpos[i][1]] ^ fpatterns[i][j] for j in range(4)])
+
+    # Compute the possible subkeys
+    subkeys = []
+    for i in range(4):
+        subkeys.append([possible_values[i][j] ^ possible_values_correct[i][j] for j in range(4)])
+
+    return subkeys
+
+def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):# TODO
     """
         Attack a subkey of 32-bits.
         ct: correct ciphertext matrix.
@@ -78,9 +108,23 @@ def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):
         locxSB9: [0-3], line where fault(s) have been injected.
         locySB9: [0-3], column where the fault(s) have been injected.
     """
+    
+    # Compute the positions of the faulty bytes in the ciphertext
+    fpos = compute_ciphertext_fpositions(locxSB9,locySB9)
 
-    #TODO
-    return [(0,0,0,0)]
+    # Generate all the possible fault patterns
+    fpatterns = generate_faults_patterns_postMC(locxSB9)
+
+    # Compute the possible subkeys
+    setk = []
+    for i in range(len(ctfs)):
+        subkeys = compute_4tuples_subkeys(ct,ctfs[i],fpos,fpatterns)
+        for j in range(4):
+            setk.append(tuple(subkeys[j]))
+
+    # Remove duplicates
+    setk = list(set(setk))
+    return setk
 
 if __name__ == "__main__":
     # Initialise aes object

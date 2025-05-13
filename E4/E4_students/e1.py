@@ -1,5 +1,5 @@
 from main import random_bit_pattern,print_round_keys
-from aes import AES,sbox_inv, inv_shift_rows
+from aes import AES,sbox_inv
 import numpy as np
 
 import os
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     key = np.random.randint(0,256,16)
     aes = AES(key)
     
-    n_faults = 160 # TODO: what number should we put here ?
+    n_faults = 3 # TODO: what number should we put here ?
 
     # Where the key will be stored
     last_round_key = np.zeros((4,4), dtype=np.uint8)
