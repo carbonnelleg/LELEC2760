@@ -50,25 +50,19 @@ def generate_faults_patterns_postMC(locxSB9): # TODO
 
         Return a list of tuples, each of tuples being a possible error patterns. (Byte 1, Byte 2, Byte 3, Byte 4)
     """
-    # There should be 4 * 256 patterns before the MC, then we propagate the faults
-    patterns = []
-    for i in range(4):
-        for j in range(256):
-            pat = [0,0,0,0]
-            pat[i] = j
-            patterns.append(pat)
+    # All rows are the same, so we consider columns only
+    # We have a position, meaning, we can generate all the possible patterns on that postion
 
-    # Compute the resulting MC patterns for locxSB9
-    outputs = []
-    for pat in patterns:
-        # Compute the faulty column
-        col = (locxSB9 + 4 - i)%4
-        # Compute the faulty pattern
-        pat[col] = xtime(pat[col])
-        # Append the pattern to the list
-        outputs.append(tuple(pat))
-    return outputs
-        
+    # Generate all Pre-MC patterns
+    patterns = np.zeros((256,4),dtype=np.uint8)
+    patterns[:,locxSB9] = np.arange(256,dtype=np.uint8)
+
+    # Calculate the patterns after the MC operation
+    for i in range(256):
+        mix_single_column(patterns[i])
+
+    # Format and return the patterns
+    return [tuple(patterns[i]) for i in range(256)]
 
 def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):# TODO
     """
@@ -82,22 +76,38 @@ def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):# TODO
         Return a list of tuples, each tuples being composed of 4 bytes values. Each tuple
         is a possible subkey of 32-bits.
     """
+    # Arrive at AK before MC, through inversion, then XOR with the faulty ciphertext (to isolate the faulty bytes)
+    # AK | The value we want <- SB <- SR <- AK
 
-    # Compute the possible values for the faulty ciphertext
-    possible_values = []
-    for i in range(4):
-        possible_values.append([ctf[fpos[i][0]][fpos[i][1]] ^ fpatterns[i][j] for j in range(4)])
+    candidates_non_faulty = []
+    candidates_faulty = []
+    for candidate in range(256):
+        # Compute the value of the candidate
+        candidate = sbox_inv[ctf[fpos[0][0]][fpos[0][1]] ^ candidate]
+        # Compute the value of the faulty ciphertext
+        faulty = sbox_inv[ct[fpos[0][0]][fpos[0][1]] ^ candidate]
+        # Append the values to the list
+        candidates_non_faulty.append(candidate)
+        candidates_faulty.append(faulty)
 
-    # Compute the possible values for the correct ciphertext
-    possible_values_correct = []
-    for i in range(4):
-        possible_values_correct.append([ct[fpos[i][0]][fpos[i][1]] ^ fpatterns[i][j] for j in range(4)])
+    # Remove the non faulty values
+    candidates_faults = []
+    for i in range(len(candidates_non_faulty)):
+        candidates_faults.append([candidates_non_faulty[i][j] ^ candidates_faulty[i][j] for j in range(4)])
 
-    # Compute the possible subkeys
+    # Get possible subkeys
     subkeys = []
-    for i in range(4):
-        subkeys.append([possible_values[i][j] ^ possible_values_correct[i][j] for j in range(4)])
-
+    for i in range(len(fpatterns)):
+        # Compute the value of the subkey
+        subkey = []
+        for j in range(4):
+            # Compute the value of the subkey
+            subkey.append(candidates_faults[i][j] ^ fpatterns[i][j])
+        # Append the value to the list
+        subkeys.append(tuple(subkey))
+    # Remove duplicates
+    subkeys = list(set(subkeys))
+    
     return subkeys
 
 def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):# TODO
@@ -116,14 +126,16 @@ def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):# TODO
     fpatterns = generate_faults_patterns_postMC(locxSB9)
 
     # Compute the possible subkeys
-    setk = []
+    setk = set()
     for i in range(len(ctfs)):
+        # Compute the possible subkeys
         subkeys = compute_4tuples_subkeys(ct,ctfs[i],fpos,fpatterns)
+        # Add the subkeys to the set
         for j in range(4):
-            setk.append(tuple(subkeys[j]))
+            setk.add(tuple(subkeys[j]))
+    # Convert the set to a list
+    setk = list(setk)
 
-    # Remove duplicates
-    setk = list(set(setk))
     return setk
 
 if __name__ == "__main__":
@@ -134,7 +146,7 @@ if __name__ == "__main__":
     # Generate attack cases
     locx_fault = 2
     locy_fault = 3
-    n = 2
+    n = 3
 
     pt = np.random.randint(0,256,16)
     ct = aes.encrypt_block(pt)
@@ -168,7 +180,7 @@ if __name__ == "__main__":
     print("Target subkey: {}".format(ttarget))
     print("Subkey found after the attack:")
     for ei,e in enumerate(setk):
-        print("Skey n°{} -> {}".format(ei,e))
+        print("Skey num {} -> {}".format(ei,e))
     if len(setk)>1:
         print("CAUTION: more than 1 subbyte key isolated...")
     print("")
