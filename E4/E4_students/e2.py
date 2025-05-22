@@ -76,29 +76,32 @@ def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):# TODO
         Return a list of tuples, each tuples being composed of 4 bytes values. Each tuple
         is a possible subkey of 32-bits.
     """
-    # Arrive at AK before MC, through inversion, then XOR with the faulty ciphertext (to isolate the faulty bytes)
-    # AK | The value we want <- SB <- SR <- AK
+    # itertools.product() - Allows to generate procedurally all possible combinations of multiple input lists
+    from itertools import product
+    
+    final_candidates = []
 
-    # For each AK, we then do a SBOX inversion, then, we XOR them, then we can read the fault patterns (hamming distance)
-    # its a bi-directional search technically, so we have 2^16 output scores, sorted by the number of 1s
+    # For each pattern, compute all possible sub-candidates
+    for pattern in fpatterns:
+        sub_candidates = [[] for _ in range(4)]
 
-    fused_match = []
-    for i in range(len(fpatterns)):
-        # Compute the value of the fault pattern
-        pattern_match_c  = [fpatterns[i][j] ^ ct[fpos[j][0]][fpos[j][1]] for j in range(4)]
-        pattern_match_cf = [fpatterns[i][j] ^ ctf[fpos[j][0]][fpos[j][1]] for j in range(4)]
-        fused_match.append(tuple([pattern_match_c[j] ^ pattern_match_cf[j] for j in range(4)]))
+        # For each position, compute the possible subkey candidates, and add them to the sub_candidates list
+        for i, (row, column) in enumerate(fpos):
+            for key in range(256):
+                ct_min_4  = sbox_inv[ct [row, column] ^ key]
+                ctf_min_4 = sbox_inv[ctf[row, column] ^ key]
+                if (ct_min_4 ^ ctf_min_4) == pattern[i]:
+                    sub_candidates[i].append(key)
 
-    # Check all keys against those fused matches
-    scores = np.zeros((256),dtype=np.uint8)
-    for i in range(256):
-        # Compute the value of the fault pattern
-        pattern_match = [fused_match[j][i] for j in range(len(fpatterns))]
-        # Compute the number of 1s in the pattern
-        score = 0
-        for j in range(4):
-            score += bin(pattern_match[j]).count("1")
-        scores[i] = score
+        # Skip if ANY position has no candidates, then the pattern is impossible (Avoid a occasionnal error)
+        if any(len(sub_key_candidates) == 0 for sub_key_candidates in sub_candidates):
+            continue
+
+        # Otherwise, append all possible combinations of the sub-candidates into the final candidates
+        for quad in product(*sub_candidates):
+            final_candidates.append(quad)
+
+    return final_candidates
 
 
 def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):# TODO
@@ -110,24 +113,22 @@ def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):# TODO
         locySB9: [0-3], column where the fault(s) have been injected.
     """
     
-    # Compute the positions of the faulty bytes in the ciphertext
-    fpos = compute_ciphertext_fpositions(locxSB9,locySB9)
+    # 1 - Get positions nof the faulty bytes
+    fpos      = compute_ciphertext_fpositions(locxSB9, locySB9)
 
-    # Generate all the possible fault patterns
+    # 2 - Generate all possible post MC patterns
     fpatterns = generate_faults_patterns_postMC(locxSB9)
 
-    # Compute the possible subkeys
-    setk = set()
-    for i in range(len(ctfs)):
-        # Compute the possible subkeys
-        subkeys = compute_4tuples_subkeys(ct,ctfs[i],fpos,fpatterns)
-        # Add the subkeys to the set
-        for j in range(4):
-            setk.add(tuple(subkeys[j]))
-    # Convert the set to a list
-    setk = list(setk)
+    # 3 - Compute all possible candidate subkeys, for each faulty ciphertext, and put each in a set
+    candidate_sets = [set(compute_4tuples_subkeys(ct, ctf, fpos, fpatterns)) for ctf in ctfs]
 
-    return setk
+    # 4 - Take all common candidates of all sets
+    common = candidate_sets[0]
+    for s in candidate_sets[1:]:
+        common &= s # Take the common elements of 2 sets
+
+    # 5 - Return a sorted list of the candidates that are common to all ciphertexts
+    return sorted(common)
 
 if __name__ == "__main__":
     # Initialise aes object
