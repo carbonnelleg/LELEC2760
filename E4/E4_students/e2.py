@@ -70,7 +70,7 @@ def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):# TODO
         the fault positions in the ciphertext and the fault patterns.
         ct: correct ciphertext matrix.
         ctf: a faulty ciphertext matrix, resulting of the same encryption process as the correct one.
-        fpos: list of position of faulty bytes in the ciphertext matrix.
+        fpos: list of position of faulty bytes in the ciphertext matrix. ex: [(0, 1), (1, 0), (2, 3), (3, 2)]
         fpatterns: possible faults patterns.
 
         Return a list of tuples, each tuples being composed of 4 bytes values. Each tuple
@@ -79,36 +79,27 @@ def compute_4tuples_subkeys(ct,ctf,fpos,fpatterns):# TODO
     # Arrive at AK before MC, through inversion, then XOR with the faulty ciphertext (to isolate the faulty bytes)
     # AK | The value we want <- SB <- SR <- AK
 
-    candidates_non_faulty = []
-    candidates_faulty = []
-    for candidate in range(256):
-        # Compute the value of the candidate
-        candidate = sbox_inv[ctf[fpos[0][0]][fpos[0][1]] ^ candidate]
-        # Compute the value of the faulty ciphertext
-        faulty = sbox_inv[ct[fpos[0][0]][fpos[0][1]] ^ candidate]
-        # Append the values to the list
-        candidates_non_faulty.append(candidate)
-        candidates_faulty.append(faulty)
+    # For each AK, we then do a SBOX inversion, then, we XOR them, then we can read the fault patterns (hamming distance)
+    # its a bi-directional search technically, so we have 2^16 output scores, sorted by the number of 1s
 
-    # Remove the non faulty values
-    candidates_faults = []
-    for i in range(len(candidates_non_faulty)):
-        candidates_faults.append([candidates_non_faulty[i][j] ^ candidates_faulty[i][j] for j in range(4)])
-
-    # Get possible subkeys
-    subkeys = []
+    fused_match = []
     for i in range(len(fpatterns)):
-        # Compute the value of the subkey
-        subkey = []
+        # Compute the value of the fault pattern
+        pattern_match_c  = [fpatterns[i][j] ^ ct[fpos[j][0]][fpos[j][1]] for j in range(4)]
+        pattern_match_cf = [fpatterns[i][j] ^ ctf[fpos[j][0]][fpos[j][1]] for j in range(4)]
+        fused_match.append(tuple([pattern_match_c[j] ^ pattern_match_cf[j] for j in range(4)]))
+
+    # Check all keys against those fused matches
+    scores = np.zeros((256),dtype=np.uint8)
+    for i in range(256):
+        # Compute the value of the fault pattern
+        pattern_match = [fused_match[j][i] for j in range(len(fpatterns))]
+        # Compute the number of 1s in the pattern
+        score = 0
         for j in range(4):
-            # Compute the value of the subkey
-            subkey.append(candidates_faults[i][j] ^ fpatterns[i][j])
-        # Append the value to the list
-        subkeys.append(tuple(subkey))
-    # Remove duplicates
-    subkeys = list(set(subkeys))
-    
-    return subkeys
+            score += bin(pattern_match[j]).count("1")
+        scores[i] = score
+
 
 def attack_rndbyte_SB9(ct,ctfs,locxSB9,locySB9):# TODO
     """
